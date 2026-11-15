@@ -1,6 +1,7 @@
 """Client against a fake ProLink module on localhost."""
 
 import asyncio
+import contextlib
 
 import pytest
 
@@ -13,7 +14,8 @@ async def _fake_module(frames: bytes):
     async def handle(reader, writer):
         writer.write(frames)
         await writer.drain()
-        await asyncio.sleep(3600)
+        await reader.read()  # hold the connection open until the client closes
+        writer.close()
 
     server = await asyncio.start_server(handle, "127.0.0.1", 0)
     return server, server.sockets[0].getsockname()[1]
@@ -41,7 +43,11 @@ async def test_client_receives_status(socket_enabled):
         assert count == 1
     finally:
         task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        await client.close()
         server.close()
+        await server.wait_closed()
 
 
 @pytest.mark.allow_hosts(["127.0.0.1"])
@@ -68,4 +74,8 @@ async def test_client_reconnects_after_close(socket_enabled):
         assert client.status is not None
     finally:
         task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        await client.close()
         server.close()
+        await server.wait_closed()
