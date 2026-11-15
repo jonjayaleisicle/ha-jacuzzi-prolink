@@ -157,3 +157,9 @@ def test_build_button_press():
     # 7E 06 0A BF 17 04 CRC 7E, as in pyjacuzzi's comments
     frame = p.parse_frame(p.build_button_press(p.BUTTON_JETS_1))
     assert (frame.dst, frame.pf, frame.mtype, frame.payload) == (0x0A, 0xBF, 0x17, b"\x04")
+
+
+def test_j480_both_jets():
+    from .frames import J480_STATUS_BOTH_JETS_ON
+
+    assert p.parse_status(J480_STATUS_BOTH_JETS_ON).pump_states == (2, 2, 2, 0)

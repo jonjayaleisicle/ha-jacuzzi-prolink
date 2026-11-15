@@ -67,3 +67,10 @@ J480_LIGHTS_ON = bytes.fromhex(
 J480_LIGHTS_OFF = bytes.fromhex(
     "7e21ffaf2300000000000000010064000000ff00000000000000010064000000ffe97e"
 )
+
+# The same J-480 with both jets switched on from Home Assistant (22:35,
+# 15 Nov 2026): the two jet pumps can run together.
+J480_STATUS_BOTH_JETS_ON = bytes.fromhex(
+    "7e25ffaf1616230f0b1a920026fa252a0401030000470200016d800000b4"
+    "005a0100000000d07e"
+)
