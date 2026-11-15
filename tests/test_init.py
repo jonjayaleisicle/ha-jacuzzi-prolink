@@ -70,7 +70,7 @@ async def test_entities_follow_status(hass: HomeAssistant) -> None:
     await hass.async_block_till_done()
 
     water = hass.states.get("sensor.spa_water_temperature")
-    assert float(water.state) == 19.0
+    assert float(water.state) == 38.0
     assert water.attributes["unit_of_measurement"] == "°C"
     assert hass.states.get("sensor.spa_pump_1").state == "high"
     assert hass.states.get("sensor.spa_pump_2").state == "off"

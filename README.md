@@ -17,14 +17,13 @@ Home Assistant.
 | --- | --- |
 | Water temperature | °C or °F, following the spa's own setting |
 | Target temperature | The set point |
-| Plumbing temperature | Second sensor, in the plumbing (meaning not fully confirmed) |
 | Circulation pump, Pump 1–3 | Off / Low / High |
 | Filter cycle, ClearRay | Running or not (bit positions not fully confirmed) |
 | Panel lock | Whether the topside panel is locked |
 | Error, Error code | Spa error reporting (0 = no error) |
 | Light brightness | Light colour mode and RGB as attributes |
 | Connected, Last update | Whether the module is sending data |
-| Diagnostics | Heat mode state, spa state, spa clock, WiFi state, and (disabled by default) ClearRay/water/filter timers |
+| Diagnostics | Heat mode state, spa state, spa clock, WiFi state, and (disabled by default, decoding unconfirmed) plumbing temperature and ClearRay/water/filter timers |
 
 Updates are pushed by the spa (several per second while awake), so entities
 change as soon as the spa reports something new.

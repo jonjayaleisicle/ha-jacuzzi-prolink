@@ -4,10 +4,12 @@ import pytest
 
 from custom_components.jacuzzi_prolink import protocol as p
 
-from .frames import MODULE_IDENT_REQ, SET_TEMP_20C, STATUS
+from .frames import J480_LIGHTS, J480_STATUS, MODULE_IDENT_REQ, SET_TEMP_20C, STATUS
 
 
-@pytest.mark.parametrize("raw", [STATUS, SET_TEMP_20C, MODULE_IDENT_REQ])
+@pytest.mark.parametrize(
+    "raw", [STATUS, SET_TEMP_20C, MODULE_IDENT_REQ, J480_STATUS, J480_LIGHTS]
+)
 def test_real_frames_have_valid_crc(raw):
     frame = p.parse_frame(raw)
     assert p.build_frame(frame.dst, frame.pf, frame.mtype, frame.payload) == raw
@@ -18,8 +20,8 @@ def test_parse_status():
     assert (s.hour, s.minute) == (16, 18)
     assert (s.day_of_week, s.day, s.month, s.year) == (1, 7, 11, 2022)
     assert s.temp_scale == p.TSCALE_C
-    assert s.current_temp == 19.0
-    assert s.set_temp == 19.0
+    assert s.current_temp == 38.0
+    assert s.set_temp == 38.0
     assert s.pump_states == (2, 2, 0, 0)
     assert s.error_code == 0
     assert s.primary_on == 1
@@ -62,3 +64,13 @@ def test_frame_reader_drops_bad_crc():
     corrupt[-2] ^= 0xFF
     assert reader.feed(bytes(corrupt) + SET_TEMP_20C) == [p.parse_frame(SET_TEMP_20C)]
     assert reader.bad_frames >= 1
+
+
+def test_parse_j480_status():
+    s = p.parse_status(J480_STATUS)
+    assert s.temp_scale == p.TSCALE_C
+    assert s.current_temp == 37.0
+    assert s.set_temp == 37.0
+    assert s.pump_states == (0, 0, 0, 0)
+    assert s.error_code == 0
+    assert not s.twelve_hour
