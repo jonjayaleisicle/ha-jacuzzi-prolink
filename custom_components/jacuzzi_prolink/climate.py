@@ -39,7 +39,7 @@ async def async_setup_entry(
 class JacuzziClimate(JacuzziEntity, ClimateEntity):
     """Water temperature and set point. The spa always heats to the set point."""
 
-    _attr_translation_key = "spa"
+    _attr_name = None  # the device's own name, e.g. "Spa"
     _attr_hvac_modes = [HVACMode.HEAT]
     _attr_hvac_mode = HVACMode.HEAT
     _attr_supported_features = ClimateEntityFeature.TARGET_TEMPERATURE

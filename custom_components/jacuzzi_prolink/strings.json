@@ -132,11 +132,6 @@
       "sync_clock": {
         "name": "Sync spa clock"
       }
-    },
-    "climate": {
-      "spa": {
-        "name": null
-      }
     }
   },
   "exceptions": {
