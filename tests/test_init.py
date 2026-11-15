@@ -1,15 +1,18 @@
 """Config flow and entity setup."""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PORT, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+from homeassistant.exceptions import HomeAssistantError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.jacuzzi_prolink.const import DOMAIN
-from custom_components.jacuzzi_prolink.protocol import parse_frame
+from custom_components.jacuzzi_prolink.protocol import build_set_datetime, parse_frame
 
 from .frames import STATUS
 
@@ -79,3 +82,48 @@ async def test_entities_follow_status(hass: HomeAssistant) -> None:
     assert hass.states.get("sensor.spa_spa_clock").state == "16:18"
 
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_sync_clock_button(hass: HomeAssistant, freezer) -> None:
+    await hass.config.async_set_time_zone("Europe/London")
+    freezer.move_to("2026-11-15 21:42:30+00:00")
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_HOST: "192.0.2.10", CONF_PORT: 4257}, title="Spa"
+    )
+    entry.add_to_hass(hass)
+    with (
+        patch("custom_components.jacuzzi_prolink.async_probe"),
+        patch(
+            "custom_components.jacuzzi_prolink.client.ProLinkClient.run", _never_ending
+        ),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    client = entry.runtime_data.client
+    assert hass.states.get("button.spa_sync_spa_clock").state == STATE_UNAVAILABLE
+
+    writer = MagicMock()
+    writer.drain = AsyncMock()
+    client._writer = writer
+    client.handle_frame(parse_frame(STATUS))
+    await hass.async_block_till_done()
+
+    await hass.services.async_call(
+        "button", "press", {"entity_id": "button.spa_sync_spa_clock"}, blocking=True
+    )
+    writer.write.assert_called_once_with(build_set_datetime(2026, 11, 15, 21, 42))
+
+    # Lost connection: the press fails with a clear error instead of hanging
+    client._writer = None
+    with pytest.raises(HomeAssistantError):
+        await client_press(hass)
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def client_press(hass: HomeAssistant) -> None:
+    entity = hass.data["entity_components"]["button"].get_entity(
+        "button.spa_sync_spa_clock"
+    )
+    await entity.async_press()

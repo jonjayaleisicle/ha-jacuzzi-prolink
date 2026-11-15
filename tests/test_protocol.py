@@ -74,3 +74,21 @@ def test_parse_j480_status():
     assert s.pump_states == (0, 0, 0, 0)
     assert s.error_code == 0
     assert not s.twelve_hour
+
+
+def test_build_set_datetime():
+    raw = p.build_set_datetime(2026, 11, 15, 21, 42)
+    frame = p.parse_frame(raw)  # valid flags, length and CRC
+    assert frame.dst == p.PROLINK_CHANNEL
+    assert frame.pf == p.PF_ADDRESSED
+    assert frame.mtype == p.MSG_SET_TIME
+    # month | 0xF0, day, year - 2000, hour, minute
+    assert frame.payload == bytes([0xFB, 15, 26, 21, 42])
+
+
+@pytest.mark.parametrize(
+    "args", [(1999, 1, 1, 0, 0), (2026, 13, 1, 0, 0), (2026, 1, 1, 24, 0), (2026, 1, 1, 0, 60)]
+)
+def test_build_set_datetime_rejects_bad_values(args):
+    with pytest.raises(ValueError):
+        p.build_set_datetime(*args)

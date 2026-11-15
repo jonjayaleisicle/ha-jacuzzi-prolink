@@ -32,6 +32,12 @@ MSG_STATUS_UPDATE = 0x16
 MSG_BUTTON_PRESS = 0x17
 MSG_LIGHTS_UPDATE = 0x23
 
+# Commands we send
+MSG_SET_TIME = 0x18
+
+# Bus address the ProLink module uses; commands are sent from it
+PROLINK_CHANNEL = 0x0A
+
 MAX_LEN = 128
 MIN_FRAME_LEN = 7  # 7E LEN DST PF TYPE CRC 7E
 MIN_STATUS_LEN = 28  # parse_status reads up to frame[27]
@@ -80,6 +86,24 @@ def build_frame(dst: int, pf: int, mtype: int, payload: bytes = b"") -> bytes:
         raise ProtocolError("payload too long")
     body = bytes([length, dst, pf, mtype]) + payload
     return bytes([FLAG]) + body + bytes([crc(body), FLAG])
+
+
+def build_set_datetime(
+    year: int, month: int, day: int, hour: int, minute: int
+) -> bytes:
+    """Frame that sets the spa's date and clock (message type 0x18).
+
+    Payload: month | 0xF0, day, year - 2000, hour, minute. The spa ignores
+    the command unless the upper four bits of the month byte are all set.
+    Jacuzzi controllers always run a 24-hour clock. Layout from pyjacuzzi
+    and Jacuzzi-RS485, which decoded it from the ProLink app.
+    """
+    if not (2000 <= year <= 2255 and 1 <= month <= 12 and 1 <= day <= 31):
+        raise ValueError("date out of range")
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        raise ValueError("time out of range")
+    payload = bytes([month | 0xF0, day, year - 2000, hour, minute])
+    return build_frame(PROLINK_CHANNEL, PF_ADDRESSED, MSG_SET_TIME, payload)
 
 
 def parse_frame(raw: bytes) -> Frame:

@@ -10,7 +10,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from .client import ProLinkClient, async_probe
 from .coordinator import JacuzziCoordinator
 
-PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.BUTTON, Platform.SENSOR]
 
 type JacuzziConfigEntry = ConfigEntry[JacuzziCoordinator]
 

@@ -1,7 +1,8 @@
-"""Read-only asyncio client for a Jacuzzi ProLink WiFi module.
+"""Asyncio client for a Jacuzzi ProLink WiFi module.
 
 The ProLink module bridges the spa's RS-485 panel bus to a TCP socket on the
-local network. Everything on the bus is forwarded to us; we only listen.
+local network. The spa's broadcasts are forwarded to us, and frames we write
+are put on the bus by the module.
 This module has no Home Assistant imports so it can be tested on its own.
 """
 
@@ -108,6 +109,19 @@ class ProLinkClient:
             self._set_connected(False)
             backoff = self._reconnect_min if got_data else min(backoff * 2, RECONNECT_MAX)
             await asyncio.sleep(backoff)
+
+    async def send(self, frame: bytes) -> None:
+        """Write a command frame to the module.
+
+        The ProLink module puts it on the spa's bus itself, so there is no
+        channel negotiation or clear-to-send to wait for.
+        """
+        writer = self._writer
+        if writer is None or not self.connected:
+            raise ConnectionError("not connected to the ProLink module")
+        _LOGGER.debug("Sending %s", frame.hex())
+        writer.write(frame)
+        await writer.drain()
 
     async def close(self) -> None:
         await self._close_writer()

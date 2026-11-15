@@ -5,10 +5,10 @@ module**. It talks to the module directly over your local network, with no
 cloud account, MQTT broker or extra hardware, and shows the spa's status in
 Home Assistant.
 
-> **Status: early, read-only.** This version only *listens* to the spa. It
-> never sends commands, so it cannot change anything on your spa. Controls
-> (set temperature, pumps, lights) are planned once the decoding has been
-> confirmed on real hardware. Developed for a J-480, and should work on other
+> **Status: early.** The integration mostly *listens* to the spa. The only
+> command it sends is setting the spa's clock, when you press **Sync spa
+> clock**. More controls (set temperature, pumps, lights) are planned once
+> the decoding has been confirmed on real hardware. Developed for a J-480, and should work on other
 > J-300/J-400 series spas with ProLink.
 
 ## What you get
@@ -23,6 +23,7 @@ Home Assistant.
 | Error, Error code | Spa error reporting (0 = no error) |
 | Light brightness | Light colour mode and RGB as attributes |
 | Connected, Last update | Whether the module is sending data |
+| Sync spa clock (button) | Sets the spa's date and clock to Home Assistant's local time |
 | Diagnostics | Heat mode state, spa state, spa clock, WiFi state, and (disabled by default, decoding unconfirmed) plumbing temperature and ClearRay/water/filter timers |
 
 Updates are pushed by the spa (several per second while awake), so entities
@@ -39,6 +40,12 @@ change as soon as the spa reports something new.
 
 Give the module a fixed IP address (a DHCP reservation on your router) so it
 keeps the same address.
+
+### Keeping the spa clock right
+
+The spa's clock drifts and resets after a power cut. To keep it in sync,
+create an automation that presses **Sync spa clock** once a day, for example
+at 03:00, and when the **Connected** sensor turns on.
 
 ## Troubleshooting
 
