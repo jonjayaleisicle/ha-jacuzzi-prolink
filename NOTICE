@@ -1,0 +1,12 @@
+ha-jacuzzi-prolink
+Copyright 2026 the ha-jacuzzi-prolink contributors
+
+custom_components/jacuzzi_prolink/protocol.py is adapted from app/protocol.py
+of Jacuzzi-RS485 (https://github.com/jackbrown1993/Jacuzzi-RS485),
+Copyright Jack Brown and contributors, licensed under the Apache License 2.0.
+
+The protocol knowledge it encodes comes from the reverse-engineering work of:
+  - dhmsjs/pyjacuzzi (Apache License 2.0)
+  - HyperActiveJ/sundance780-jacuzzi-balboa-rs485-tcp
+  - ccutrer/balboa_worldwide_app
+  - garbled1/pybalboa

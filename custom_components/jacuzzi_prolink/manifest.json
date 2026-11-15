@@ -1,0 +1,12 @@
+{
+  "domain": "jacuzzi_prolink",
+  "name": "Jacuzzi ProLink",
+  "codeowners": ["@jonjayaleisicle"],
+  "config_flow": true,
+  "documentation": "https://github.com/jonjayaleisicle/ha-jacuzzi-prolink",
+  "integration_type": "device",
+  "iot_class": "local_push",
+  "issue_tracker": "https://github.com/jonjayaleisicle/ha-jacuzzi-prolink/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

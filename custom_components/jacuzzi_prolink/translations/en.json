@@ -1,0 +1,78 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Jacuzzi ProLink",
+        "description": "Enter the IP address of the spa's ProLink WiFi module. Give it a fixed address (DHCP reservation) on your router so it does not change.",
+        "data": {
+          "host": "Host",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "IP address or hostname of the ProLink module on your network.",
+          "port": "TCP port of the module. Leave at 4257 unless you know otherwise."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Could not connect to the ProLink module. Check the address and that the spa is powered on."
+    },
+    "abort": {
+      "already_configured": "This spa is already configured."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "filter_cycle": { "name": "Filter cycle" },
+      "clearray": { "name": "ClearRay" },
+      "flow": { "name": "Water flow" },
+      "panel_lock": { "name": "Panel lock" },
+      "error": { "name": "Error" },
+      "connected": { "name": "Connected" }
+    },
+    "sensor": {
+      "water_temperature": { "name": "Water temperature" },
+      "target_temperature": { "name": "Target temperature" },
+      "plumbing_temperature": { "name": "Plumbing temperature" },
+      "circulation_pump": {
+        "name": "Circulation pump",
+        "state": { "off": "Off", "low": "Low", "high": "High" }
+      },
+      "pump_1": {
+        "name": "Pump 1",
+        "state": { "off": "Off", "low": "Low", "high": "High" }
+      },
+      "pump_2": {
+        "name": "Pump 2",
+        "state": { "off": "Off", "low": "Low", "high": "High" }
+      },
+      "pump_3": {
+        "name": "Pump 3",
+        "state": { "off": "Off", "low": "Low", "high": "High" }
+      },
+      "error_code": { "name": "Error code" },
+      "heat_mode_state": { "name": "Heat mode state" },
+      "spa_state": { "name": "Spa state" },
+      "spa_clock": { "name": "Spa clock" },
+      "wifi_state": {
+        "name": "WiFi state",
+        "state": {
+          "unknown": "Unknown",
+          "soft_ap_unavailable": "Access point mode unavailable",
+          "soft_ap_available": "Access point mode",
+          "infrastructure": "Infrastructure mode",
+          "connected_no_cloud": "Connected (no cloud)",
+          "connected_cloud": "Connected (cloud)",
+          "linking": "Linking to network",
+          "not_communicating": "Not communicating with spa"
+        }
+      },
+      "clearray_time": { "name": "ClearRay time" },
+      "water_time": { "name": "Water time" },
+      "outer_filter_time": { "name": "Outer filter time" },
+      "inner_filter_time": { "name": "Inner filter time" },
+      "light_brightness": { "name": "Light brightness" },
+      "last_update": { "name": "Last update" }
+    }
+  }
+}
