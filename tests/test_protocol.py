@@ -92,3 +92,12 @@ def test_build_set_datetime():
 def test_build_set_datetime_rejects_bad_values(args):
     with pytest.raises(ValueError):
         p.build_set_datetime(*args)
+
+
+def test_j480_clock_after_sync():
+    from .frames import J480_STATUS_AFTER_CLOCK_SYNC
+
+    s = p.parse_status(J480_STATUS_AFTER_CLOCK_SYNC)
+    assert (s.hour, s.minute) == (21, 52)
+    assert (s.day, s.month, s.year) == (15, 11, 2026)
+    assert s.day_of_week == 0  # Sunday

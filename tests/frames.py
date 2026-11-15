@@ -28,3 +28,11 @@ J480_STATUS = bytes.fromhex(
 J480_LIGHTS = bytes.fromhex(
     "7e21ffaf2300000000000000010064000000ff0000000000000000000000000000e67e"
 )
+
+# The same J-480 straight after "Sync spa clock" was pressed at 21:52 on
+# Sunday 15 Nov 2026 (Europe/London): the spa accepted the 0x18 command and
+# worked out the day of the week itself (0 = Sunday).
+J480_STATUS_AFTER_CLOCK_SYNC = bytes.fromhex(
+    "7e25ffaf1615340f0b1a920025fa2500000083000044020000008000004e"
+    "00030103000000ba7e"
+)
