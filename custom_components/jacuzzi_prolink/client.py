@@ -35,7 +35,13 @@ CONNECT_TIMEOUT = 10.0
 IDLE_TIMEOUT = 60.0
 RECONNECT_MIN = 5.0
 RECONNECT_MAX = 120.0
-RECENT_FRAMES = 5
+RECENT_FRAMES = 30
+SENT_FRAMES = 30
+
+
+def _stamp() -> str:
+    """UTC time to the second, to line frames up with what happened."""
+    return datetime.now(UTC).strftime("%H:%M:%S")
 
 
 async def async_probe(host: str, port: int, timeout: float = CONNECT_TIMEOUT) -> None:
@@ -76,6 +82,7 @@ class ProLinkClient:
         # Diagnostics: what the bus is carrying, to help decode new models
         self.frame_counts: Counter[int] = Counter()
         self.recent_frames: dict[int, deque[str]] = {}
+        self.sent_frames: deque[str] = deque(maxlen=SENT_FRAMES)
         self.bad_frames = 0
         self.connect_count = 0
 
@@ -122,6 +129,7 @@ class ProLinkClient:
         _LOGGER.debug("Sending %s", frame.hex())
         writer.write(frame)
         await writer.drain()
+        self.sent_frames.append(f"{_stamp()} {frame.hex()}")
 
     async def close(self) -> None:
         await self._close_writer()
@@ -166,7 +174,7 @@ class ProLinkClient:
         if self._last_raw.get(mtype) != frame.raw:
             self._last_raw[mtype] = frame.raw
             recent = self.recent_frames.setdefault(mtype, deque(maxlen=RECENT_FRAMES))
-            recent.append(frame.raw.hex())
+            recent.append(f"{_stamp()} {frame.raw.hex()}")
             try:
                 if mtype == MSG_STATUS_UPDATE:
                     self.status = parse_status(frame.raw)
@@ -200,6 +208,7 @@ class ProLinkClient:
             if self.last_status_at
             else None,
             "frame_counts": {f"0x{k:02x}": v for k, v in sorted(self.frame_counts.items())},
+            "sent_frames": list(self.sent_frames),
             "recent_frames": {
                 f"0x{k:02x}": list(v) for k, v in sorted(self.recent_frames.items())
             },

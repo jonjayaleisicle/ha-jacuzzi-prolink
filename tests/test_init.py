@@ -249,6 +249,9 @@ async def test_jets_and_lights_toggle(hass: HomeAssistant, freezer) -> None:
     writer.write.reset_mock()
     await call("light", "turn_on", "light.spa_lights")
     writer.write.assert_called_once_with(build_button_press(BUTTON_LIGHTS))
+    # Every command sent is kept, timestamped, for the diagnostics download
+    assert client.sent_frames[-1].endswith(build_button_press(BUTTON_LIGHTS).hex())
+    assert len(client.sent_frames) == 4
     client.handle_frame(parse_frame(J480_LIGHTS_ON))
     await hass.async_block_till_done()
     assert hass.states.get("light.spa_lights").state == "on"
