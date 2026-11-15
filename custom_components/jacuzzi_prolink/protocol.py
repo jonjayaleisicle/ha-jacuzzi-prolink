@@ -34,6 +34,13 @@ MSG_LIGHTS_UPDATE = 0x23
 
 # Commands we send
 MSG_SET_TIME = 0x18
+MSG_SET_TEMP = 0x20
+
+# Set point limits, from the ProLink app (the J-480 panel's minimum is 18.5 C)
+MIN_TEMP_C = 18.5
+MAX_TEMP_C = 40.0
+MIN_TEMP_F = 65.0
+MAX_TEMP_F = 104.0
 
 # Bus address the ProLink module uses; commands are sent from it
 PROLINK_CHANNEL = 0x0A
@@ -104,6 +111,22 @@ def build_set_datetime(
         raise ValueError("time out of range")
     payload = bytes([month | 0xF0, day, year - 2000, hour, minute])
     return build_frame(PROLINK_CHANNEL, PF_ADDRESSED, MSG_SET_TIME, payload)
+
+
+def build_set_temperature(temp: float, temp_scale: int) -> bytes:
+    """Frame that sets the target temperature (message type 0x20).
+
+    One payload byte, in the spa's current unit: half-degrees for Celsius,
+    whole degrees for Fahrenheit. Out-of-range values raise ValueError
+    rather than being sent.
+    """
+    if temp_scale == TSCALE_C:
+        low, high, raw = MIN_TEMP_C, MAX_TEMP_C, round(temp * 2)
+    else:
+        low, high, raw = MIN_TEMP_F, MAX_TEMP_F, round(temp)
+    if not low <= temp <= high:
+        raise ValueError(f"{temp} is outside {low}-{high}")
+    return build_frame(PROLINK_CHANNEL, PF_ADDRESSED, MSG_SET_TEMP, bytes([raw]))
 
 
 def parse_frame(raw: bytes) -> Frame:

@@ -132,11 +132,19 @@
       "sync_clock": {
         "name": "Sync spa clock"
       }
+    },
+    "climate": {
+      "spa": {
+        "name": null
+      }
     }
   },
   "exceptions": {
     "not_connected": {
       "message": "The spa is not connected. Check that the ProLink module is online and try again."
+    },
+    "temperature_out_of_range": {
+      "message": "The spa accepts target temperatures from {min} to {max} {unit}."
     }
   }
 }

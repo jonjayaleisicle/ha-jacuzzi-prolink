@@ -101,3 +101,18 @@ def test_j480_clock_after_sync():
     assert (s.hour, s.minute) == (21, 52)
     assert (s.day, s.month, s.year) == (15, 11, 2026)
     assert s.day_of_week == 0  # Sunday
+
+
+def test_build_set_temperature_matches_captured_frame():
+    # SET_TEMP_20C was captured from Jacuzzi-RS485 changing a real spa to 20 C
+    assert p.build_set_temperature(20.0, p.TSCALE_C) == SET_TEMP_20C
+    assert p.parse_frame(p.build_set_temperature(18.5, p.TSCALE_C)).payload == bytes([37])
+    assert p.parse_frame(p.build_set_temperature(100, p.TSCALE_F)).payload == bytes([100])
+
+
+@pytest.mark.parametrize(
+    ("temp", "scale"), [(18.0, p.TSCALE_C), (40.5, p.TSCALE_C), (64, p.TSCALE_F), (105, p.TSCALE_F)]
+)
+def test_build_set_temperature_rejects_out_of_range(temp, scale):
+    with pytest.raises(ValueError):
+        p.build_set_temperature(temp, scale)

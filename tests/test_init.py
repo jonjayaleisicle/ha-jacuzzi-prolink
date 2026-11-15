@@ -8,13 +8,18 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PORT, STATE_UNAVAILABLE
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.jacuzzi_prolink.const import DOMAIN
-from custom_components.jacuzzi_prolink.protocol import build_set_datetime, parse_frame
+from custom_components.jacuzzi_prolink.protocol import (
+    TSCALE_C,
+    build_set_datetime,
+    build_set_temperature,
+    parse_frame,
+)
 
-from .frames import STATUS
+from .frames import J480_STATUS, STATUS
 
 PROBE = "custom_components.jacuzzi_prolink.{}.async_probe"
 
@@ -105,6 +110,7 @@ async def test_sync_clock_button(hass: HomeAssistant, freezer) -> None:
 
     writer = MagicMock()
     writer.drain = AsyncMock()
+    writer.wait_closed = AsyncMock()
     client._writer = writer
     client.handle_frame(parse_frame(STATUS))
     await hass.async_block_till_done()
@@ -127,3 +133,49 @@ async def client_press(hass: HomeAssistant) -> None:
         "button.spa_sync_spa_clock"
     )
     await entity.async_press()
+
+
+async def test_climate_sets_temperature(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_HOST: "192.0.2.10", CONF_PORT: 4257}, title="Spa"
+    )
+    entry.add_to_hass(hass)
+    with (
+        patch("custom_components.jacuzzi_prolink.async_probe"),
+        patch(
+            "custom_components.jacuzzi_prolink.client.ProLinkClient.run", _never_ending
+        ),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    client = entry.runtime_data.client
+    writer = MagicMock()
+    writer.drain = AsyncMock()
+    writer.wait_closed = AsyncMock()
+    client._writer = writer
+    client.handle_frame(parse_frame(J480_STATUS))
+    await hass.async_block_till_done()
+
+    state = hass.states.get("climate.spa")
+    assert state.state == "heat"
+    assert state.attributes["current_temperature"] == 18.5
+    assert state.attributes["temperature"] == 18.5
+    assert state.attributes["min_temp"] == 18.5
+    assert state.attributes["max_temp"] == 40.0
+
+    await hass.services.async_call(
+        "climate", "set_temperature",
+        {"entity_id": "climate.spa", "temperature": 37.5}, blocking=True,
+    )
+    writer.write.assert_called_once_with(build_set_temperature(37.5, TSCALE_C))
+
+    writer.write.reset_mock()
+    with pytest.raises(ServiceValidationError):
+        await hass.services.async_call(
+            "climate", "set_temperature",
+            {"entity_id": "climate.spa", "temperature": 18.0}, blocking=True,
+        )
+    writer.write.assert_not_called()
+
+    assert await hass.config_entries.async_unload(entry.entry_id)

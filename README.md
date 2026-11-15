@@ -5,16 +5,17 @@ module**. It talks to the module directly over your local network, with no
 cloud account, MQTT broker or extra hardware, and shows the spa's status in
 Home Assistant.
 
-> **Status: early.** The integration mostly *listens* to the spa. The only
-> command it sends is setting the spa's clock, when you press **Sync spa
-> clock**. More controls (set temperature, pumps, lights) are planned once
-> the decoding has been confirmed on real hardware. Developed for a J-480, and should work on other
+> **Status: early.** The integration mostly *listens* to the spa. It sends
+> commands only when you change the target temperature or press **Sync spa
+> clock**. Pump and light controls are planned once their decoding has been
+> confirmed on real hardware. Developed for a J-480, and should work on other
 > J-300/J-400 series spas with ProLink.
 
 ## What you get
 
 | Entity | Notes |
 | --- | --- |
+| Thermostat | Current water temperature and target temperature, which you can set (18.5–40 °C or 65–104 °F, in the spa's own unit) |
 | Water temperature | °C or °F, following the spa's own setting |
 | Target temperature | The set point |
 | Circulation pump, Pump 1–3 | Off / Low / High |
