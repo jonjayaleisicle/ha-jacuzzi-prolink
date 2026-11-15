@@ -116,3 +116,15 @@ def test_build_set_temperature_matches_captured_frame():
 def test_build_set_temperature_rejects_out_of_range(temp, scale):
     with pytest.raises(ValueError):
         p.build_set_temperature(temp, scale)
+
+
+def test_j480_after_raising_set_point():
+    from .frames import J480_STATUS_SET_20_5
+
+    s = p.parse_status(J480_STATUS_SET_20_5)
+    assert s.set_temp == 20.5
+    assert s.current_temp == 18.5
+    assert s.pump_states == (2, 0, 0, 0)  # circulation pump high
+    assert s.flow_switch == 1
+    # The set-temperature command that produced it
+    assert p.parse_frame(p.build_set_temperature(20.5, p.TSCALE_C)).payload == bytes([0x29])

@@ -36,3 +36,11 @@ J480_STATUS_AFTER_CLOCK_SYNC = bytes.fromhex(
     "7e25ffaf1615340f0b1a920025fa2500000083000044020000008000004e"
     "00030103000000ba7e"
 )
+
+# The same J-480 after the target was raised from 18.5 to 20.5 C from Home
+# Assistant (22:00, 15 Nov 2026). The spa accepted it and started its
+# circulation pump on high to heat (confirmed by the owner).
+J480_STATUS_SET_20_5 = bytes.fromhex(
+    "7e25ffaf1616000f0b1a920025fa2902060183000044020000008000004e"
+    "00030103000000637e"
+)
