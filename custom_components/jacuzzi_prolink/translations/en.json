@@ -132,6 +132,19 @@
       "sync_clock": {
         "name": "Sync spa clock"
       }
+    },
+    "switch": {
+      "jets_1": {
+        "name": "Jets 1"
+      },
+      "jets_2": {
+        "name": "Jets 2"
+      }
+    },
+    "light": {
+      "lights": {
+        "name": "Lights"
+      }
     }
   },
   "exceptions": {

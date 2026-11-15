@@ -6,9 +6,9 @@ cloud account, MQTT broker or extra hardware, and shows the spa's status in
 Home Assistant.
 
 > **Status: early.** The integration mostly *listens* to the spa. It sends
-> commands only when you change the target temperature or press **Sync spa
-> clock**. Pump and light controls are planned once their decoding has been
-> confirmed on real hardware. Developed for a J-480, and should work on other
+> commands only when you use one of its controls: target temperature, jets,
+> lights, or **Sync spa clock**. Jets and lights work by simulating a press
+> of the topside panel's button. Developed for a J-480, and should work on other
 > J-300/J-400 series spas with ProLink.
 
 ## What you get
@@ -16,6 +16,8 @@ Home Assistant.
 | Entity | Notes |
 | --- | --- |
 | Thermostat | Current water temperature and target temperature, which you can set (18.5–40 °C or 65–104 °F, in the spa's own unit) |
+| Jets 1, Jets 2 (switches) | Turn the jets on and off |
+| Lights (light) | Turn the lights on and off; colour mode and RGB in the Light brightness sensor's attributes |
 | Water temperature | °C or °F, following the spa's own setting |
 | Target temperature | The set point |
 | Circulation pump, Pump 1–3 | Off / Low / High |

@@ -36,6 +36,11 @@ MSG_LIGHTS_UPDATE = 0x23
 MSG_SET_TIME = 0x18
 MSG_SET_TEMP = 0x20
 
+# Topside panel button codes, sent as MSG_BUTTON_PRESS. A press toggles.
+BUTTON_JETS_1 = 0x04
+BUTTON_JETS_2 = 0x05
+BUTTON_LIGHTS = 0x11
+
 # Set point limits, from the ProLink app (the J-480 panel's minimum is 18.5 C)
 MIN_TEMP_C = 18.5
 MAX_TEMP_C = 40.0
@@ -111,6 +116,15 @@ def build_set_datetime(
         raise ValueError("time out of range")
     payload = bytes([month | 0xF0, day, year - 2000, hour, minute])
     return build_frame(PROLINK_CHANNEL, PF_ADDRESSED, MSG_SET_TIME, payload)
+
+
+def build_button_press(code: int) -> bytes:
+    """Frame that simulates pressing a topside panel button (type 0x17).
+
+    The codes were read off the bus while the real panel buttons were
+    pressed; pyjacuzzi confirmed jets 1 works this way through ProLink.
+    """
+    return build_frame(PROLINK_CHANNEL, PF_ADDRESSED, MSG_BUTTON_PRESS, bytes([code]))
 
 
 def build_set_temperature(temp: float, temp_scale: int) -> bytes:
@@ -311,10 +325,13 @@ def parse_status(frame: bytes) -> SpaStatus:
 class LightStatus:
     """Decoded lights update (message type 0x23).
 
-    Byte 5 colour/mode code, 7 brightness, 8-10 red, green, blue. Decoded on
-    a J-235; other models are unconfirmed.
+    Byte 5 bit 7 on/off, 6 colour mode, 7 brightness (0-100), 8-10 red,
+    green, blue. Confirmed on a J-480: byte 5 is 0x80 with the lights on and
+    0x00 off, with mode 6 cycling colours. (Notes from a J-235 had the
+    colour code in byte 5.)
     """
 
+    on: bool
     mode: int
     brightness: int
     red: int
@@ -329,4 +346,11 @@ def parse_lights(frame: bytes) -> LightStatus:
         raise ProtocolError("lights frame too short")
     if d[4] != MSG_LIGHTS_UPDATE:
         raise ProtocolError("not a lights update")
-    return LightStatus(mode=d[5], brightness=d[7], red=d[8], green=d[9], blue=d[10])
+    return LightStatus(
+        on=bool(d[5] & 0x80),
+        mode=d[6],
+        brightness=d[7],
+        red=d[8],
+        green=d[9],
+        blue=d[10],
+    )

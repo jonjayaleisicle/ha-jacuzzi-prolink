@@ -45,8 +45,12 @@ def test_parse_status_rejects_other_types():
 
 
 def test_parse_lights():
-    raw = p.build_frame(0xFF, p.PF_BROADCAST, p.MSG_LIGHTS_UPDATE, bytes([5, 0, 3, 10, 20, 30]))
-    assert p.parse_lights(raw) == p.LightStatus(mode=5, brightness=3, red=10, green=20, blue=30)
+    raw = p.build_frame(
+        0xFF, p.PF_BROADCAST, p.MSG_LIGHTS_UPDATE, bytes([0x80, 6, 100, 10, 20, 30])
+    )
+    assert p.parse_lights(raw) == p.LightStatus(
+        on=True, mode=6, brightness=100, red=10, green=20, blue=30
+    )
 
 
 def test_frame_reader_handles_chunks_and_garbage():
@@ -128,3 +132,28 @@ def test_j480_after_raising_set_point():
     assert s.flow_switch == 1
     # The set-temperature command that produced it
     assert p.parse_frame(p.build_set_temperature(20.5, p.TSCALE_C)).payload == bytes([0x29])
+
+
+def test_j480_jets_and_lights():
+    from .frames import (
+        J480_LIGHTS_OFF,
+        J480_LIGHTS_ON,
+        J480_STATUS_JETS_1_ON,
+        J480_STATUS_JETS_2_ON,
+        J480_STATUS_JETS_OFF,
+    )
+
+    assert p.parse_status(J480_STATUS_JETS_1_ON).pump_states == (2, 2, 0, 0)
+    assert p.parse_status(J480_STATUS_JETS_OFF).pump_states == (2, 0, 0, 0)
+    assert p.parse_status(J480_STATUS_JETS_2_ON).pump_states == (2, 0, 2, 0)
+
+    on = p.parse_lights(J480_LIGHTS_ON)
+    assert on.on and on.mode == 6 and on.brightness == 100
+    assert (on.red, on.green, on.blue) == (0x00, 0x5C, 0xA2)
+    assert not p.parse_lights(J480_LIGHTS_OFF).on
+
+
+def test_build_button_press():
+    # 7E 06 0A BF 17 04 CRC 7E, as in pyjacuzzi's comments
+    frame = p.parse_frame(p.build_button_press(p.BUTTON_JETS_1))
+    assert (frame.dst, frame.pf, frame.mtype, frame.payload) == (0x0A, 0xBF, 0x17, b"\x04")

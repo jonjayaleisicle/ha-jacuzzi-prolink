@@ -179,3 +179,78 @@ async def test_climate_sets_temperature(hass: HomeAssistant) -> None:
     writer.write.assert_not_called()
 
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_jets_and_lights_toggle(hass: HomeAssistant, freezer) -> None:
+    from custom_components.jacuzzi_prolink.protocol import (
+        BUTTON_JETS_1,
+        BUTTON_LIGHTS,
+        build_button_press,
+    )
+
+    from .frames import J480_LIGHTS_OFF, J480_LIGHTS_ON, J480_STATUS_JETS_1_ON, J480_STATUS_JETS_OFF
+
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={CONF_HOST: "192.0.2.10", CONF_PORT: 4257}, title="Spa"
+    )
+    entry.add_to_hass(hass)
+    with (
+        patch("custom_components.jacuzzi_prolink.async_probe"),
+        patch(
+            "custom_components.jacuzzi_prolink.client.ProLinkClient.run", _never_ending
+        ),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    client = entry.runtime_data.client
+    writer = MagicMock()
+    writer.drain = AsyncMock()
+    writer.wait_closed = AsyncMock()
+    client._writer = writer
+    client.handle_frame(parse_frame(J480_STATUS_JETS_OFF))
+    client.handle_frame(parse_frame(J480_LIGHTS_OFF))
+    await hass.async_block_till_done()
+
+    assert hass.states.get("switch.spa_jets_1").state == "off"
+    assert hass.states.get("switch.spa_jets_2").state == "off"
+    assert hass.states.get("light.spa_lights").state == "off"
+
+    async def call(domain, service, entity_id):
+        await hass.services.async_call(
+            domain, service, {"entity_id": entity_id}, blocking=True
+        )
+
+    # Turning off something already off sends nothing
+    await call("switch", "turn_off", "switch.spa_jets_1")
+    writer.write.assert_not_called()
+
+    # Turning on presses the jets 1 button once
+    await call("switch", "turn_on", "switch.spa_jets_1")
+    writer.write.assert_called_once_with(build_button_press(BUTTON_JETS_1))
+
+    # A second request before the spa reports back must not press again
+    await call("switch", "turn_on", "switch.spa_jets_1")
+    await call("switch", "turn_off", "switch.spa_jets_1")
+    assert writer.write.call_count == 1
+
+    # The spa confirms; now turning off presses again
+    client.handle_frame(parse_frame(J480_STATUS_JETS_1_ON))
+    await hass.async_block_till_done()
+    assert hass.states.get("switch.spa_jets_1").state == "on"
+    await call("switch", "turn_off", "switch.spa_jets_1")
+    assert writer.write.call_count == 2
+
+    # If the spa never confirms, presses are allowed again after the settle time
+    freezer.tick(6)
+    await call("switch", "turn_off", "switch.spa_jets_1")
+    assert writer.write.call_count == 3
+
+    writer.write.reset_mock()
+    await call("light", "turn_on", "light.spa_lights")
+    writer.write.assert_called_once_with(build_button_press(BUTTON_LIGHTS))
+    client.handle_frame(parse_frame(J480_LIGHTS_ON))
+    await hass.async_block_till_done()
+    assert hass.states.get("light.spa_lights").state == "on"
+
+    assert await hass.config_entries.async_unload(entry.entry_id)

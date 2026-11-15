@@ -44,3 +44,26 @@ J480_STATUS_SET_20_5 = bytes.fromhex(
     "7e25ffaf1616000f0b1a920025fa2902060183000044020000008000004e"
     "00030103000000637e"
 )
+
+# The same J-480 with the jets switched from the topside panel (22:24,
+# 15 Nov 2026). The circulation pump was running throughout. Single-speed
+# jets report as 2 ("high").
+J480_STATUS_JETS_1_ON = bytes.fromhex(
+    "7e25ffaf1616180f0b1a920025fa250a0501030000490200016d8000004e"
+    "00030100000000f27e"
+)
+J480_STATUS_JETS_OFF = bytes.fromhex(
+    "7e25ffaf1616180f0b1a920025fa25020501030000490200016d8000004e"
+    "000301000000006c7e"
+)
+J480_STATUS_JETS_2_ON = bytes.fromhex(
+    "7e25ffaf1616180f0b1a920025fa25220501030000490200016d8000004e"
+    "000301000000001a7e"
+)
+# Lights on (colour-cycling mode 6) and then off, same session
+J480_LIGHTS_ON = bytes.fromhex(
+    "7e21ffaf23800664005ca200010064000000ff00000000000000010064000000ff277e"
+)
+J480_LIGHTS_OFF = bytes.fromhex(
+    "7e21ffaf2300000000000000010064000000ff00000000000000010064000000ffe97e"
+)

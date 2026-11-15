@@ -105,6 +105,7 @@ SENSORS: tuple[JacuzziSensorDescription, ...] = (
         translation_key="pump_3",
         device_class=SensorDeviceClass.ENUM,
         options=PUMP_STATES,
+        entity_registry_enabled_default=False,
         value_fn=_pump(3),
     ),
     JacuzziSensorDescription(
@@ -235,6 +236,7 @@ class JacuzziLightBrightnessSensor(JacuzziEntity, SensorEntity):
         if lights is None:
             return None
         return {
+            "on": lights.on,
             "mode": lights.mode,
             "red": lights.red,
             "green": lights.green,
