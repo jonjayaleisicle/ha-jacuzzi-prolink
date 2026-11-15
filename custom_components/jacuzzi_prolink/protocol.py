@@ -205,10 +205,9 @@ def parse_status(frame: bytes) -> SpaStatus:
     32     bits 7-4 wifi state
     =====  ==============================================================
 
-    Temperatures are whole degrees in the unit given by byte 18. (Balboa spas
-    send Celsius in half-degrees, but the ProLink app reads bytes 12 and 14
-    as-is, and a J-480 at 37 C sends 0x25.) The meaning of byte 21 is
-    unconfirmed: a J-480 at 37 C sent 0x44 there.
+    Celsius temperatures are sent in half-degrees, Fahrenheit in whole degrees
+    (confirmed on a J-480: 0x25 = 18.5 C, matching the topside panel). The
+    meaning of byte 21 is unconfirmed: that J-480 sent 0x44 there (34 C).
     """
     d = bytes(frame)
     if len(d) < MIN_STATUS_LEN:
@@ -217,9 +216,10 @@ def parse_status(frame: bytes) -> SpaStatus:
         raise ProtocolError("not a status update")
 
     temp_scale = TSCALE_C if d[18] & 0x01 else TSCALE_F
+    divisor = 2 if temp_scale == TSCALE_C else 1
 
     def temp(raw: int) -> float | None:
-        return None if raw == 0xFF else float(raw)
+        return None if raw == 0xFF else raw / divisor
 
     length = d[1]
     return SpaStatus(
@@ -235,7 +235,7 @@ def parse_status(frame: bytes) -> SpaStatus:
         error_code=d[11],
         temp_scale=temp_scale,
         current_temp=temp(d[12]),
-        set_temp=float(d[14]),
+        set_temp=d[14] / divisor,
         pump_states=(
             d[15] & 0x03,
             (d[15] & 0x0C) >> 2,

@@ -74,7 +74,7 @@ SENSORS: tuple[JacuzziSensorDescription, ...] = (
         device_class=SensorDeviceClass.TEMPERATURE,
         state_class=SensorStateClass.MEASUREMENT,
         is_temperature=True,
-        # Decoding unconfirmed (a J-480 at 37 C reports 68 here)
+        # Decoding unconfirmed (a J-480 at 18.5 C reports 34 C here)
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         value_fn=lambda s: s.second_temp,

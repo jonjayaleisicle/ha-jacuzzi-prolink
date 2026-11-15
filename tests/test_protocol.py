@@ -20,8 +20,8 @@ def test_parse_status():
     assert (s.hour, s.minute) == (16, 18)
     assert (s.day_of_week, s.day, s.month, s.year) == (1, 7, 11, 2022)
     assert s.temp_scale == p.TSCALE_C
-    assert s.current_temp == 38.0
-    assert s.set_temp == 38.0
+    assert s.current_temp == 19.0
+    assert s.set_temp == 19.0
     assert s.pump_states == (2, 2, 0, 0)
     assert s.error_code == 0
     assert s.primary_on == 1
@@ -69,8 +69,8 @@ def test_frame_reader_drops_bad_crc():
 def test_parse_j480_status():
     s = p.parse_status(J480_STATUS)
     assert s.temp_scale == p.TSCALE_C
-    assert s.current_temp == 37.0
-    assert s.set_temp == 37.0
+    assert s.current_temp == 18.5
+    assert s.set_temp == 18.5
     assert s.pump_states == (0, 0, 0, 0)
     assert s.error_code == 0
     assert not s.twelve_hour

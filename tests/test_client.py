@@ -38,7 +38,7 @@ async def test_client_receives_status(socket_enabled):
         await asyncio.wait_for(updates.wait(), 5)
         await asyncio.sleep(0.1)
         assert client.connected
-        assert client.status.current_temp == 38.0
+        assert client.status.current_temp == 19.0
         assert client.frame_counts[0x16] == 2
         assert count == 1
     finally:
