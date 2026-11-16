@@ -163,3 +163,21 @@ def test_j480_both_jets():
     from .frames import J480_STATUS_BOTH_JETS_ON
 
     assert p.parse_status(J480_STATUS_BOTH_JETS_ON).pump_states == (2, 2, 2, 0)
+
+
+def test_j480_light_brightness_steps():
+    from .frames import J480_LIGHTS_40, J480_LIGHTS_60, J480_LIGHTS_100
+
+    assert [p.parse_lights(f).brightness for f in (J480_LIGHTS_40, J480_LIGHTS_60, J480_LIGHTS_100)] == [
+        40,
+        60,
+        100,
+    ]
+
+
+def test_build_set_light_brightness():
+    frame = p.parse_frame(p.build_set_light_brightness(60))
+    assert (frame.dst, frame.pf, frame.mtype) == (0x0A, 0xBF, 0x21)
+    assert frame.payload == bytes([0x2F, 0x01, 0, 0, 0, 0, 60, 0])
+    with pytest.raises(ValueError):
+        p.build_set_light_brightness(101)

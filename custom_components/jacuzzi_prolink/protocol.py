@@ -39,7 +39,10 @@ MSG_SET_TEMP = 0x20
 # Topside panel button codes, sent as MSG_BUTTON_PRESS. A press toggles.
 BUTTON_JETS_1 = 0x04
 BUTTON_JETS_2 = 0x05
-BUTTON_LIGHTS = 0x11
+BUTTON_LIGHTS = 0x11  # used by a J-235; a J-480 ignores it
+
+MSG_SET_LIGHTS = 0x21
+LIGHT_BRIGHTNESS_STEP = 20  # the J-480 panel steps 0, 20, 40, 60, 80, 100 %
 
 # Set point limits, from the ProLink app (the J-480 panel's minimum is 18.5 C)
 MIN_TEMP_C = 18.5
@@ -116,6 +119,19 @@ def build_set_datetime(
         raise ValueError("time out of range")
     payload = bytes([month | 0xF0, day, year - 2000, hour, minute])
     return build_frame(PROLINK_CHANNEL, PF_ADDRESSED, MSG_SET_TIME, payload)
+
+
+def build_set_light_brightness(percent: int) -> bytes:
+    """Frame that sets the light brightness (message type 0x21, sub-command 0x2F).
+
+    Payload 2F 01 00 00 00 00 <level> 00, from the J-235 work in pyjacuzzi
+    and Jacuzzi-RS485. The level is a percentage; the lights report the same
+    value in byte 7 of the 0x23 message. 0 turns the lights off.
+    """
+    if not 0 <= percent <= 100:
+        raise ValueError("brightness must be 0-100")
+    payload = bytes([0x2F, 0x01, 0, 0, 0, 0, percent, 0])
+    return build_frame(PROLINK_CHANNEL, PF_ADDRESSED, MSG_SET_LIGHTS, payload)
 
 
 def build_button_press(code: int) -> bytes:

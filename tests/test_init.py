@@ -184,8 +184,8 @@ async def test_climate_sets_temperature(hass: HomeAssistant) -> None:
 async def test_jets_and_lights_toggle(hass: HomeAssistant, freezer) -> None:
     from custom_components.jacuzzi_prolink.protocol import (
         BUTTON_JETS_1,
-        BUTTON_LIGHTS,
         build_button_press,
+        build_set_light_brightness,
     )
 
     from .frames import J480_LIGHTS_OFF, J480_LIGHTS_ON, J480_STATUS_JETS_1_ON, J480_STATUS_JETS_OFF
@@ -246,14 +246,29 @@ async def test_jets_and_lights_toggle(hass: HomeAssistant, freezer) -> None:
     await call("switch", "turn_off", "switch.spa_jets_1")
     assert writer.write.call_count == 3
 
+    # Every command sent is kept, timestamped, for the diagnostics download
+    assert client.sent_frames[-1].endswith(build_button_press(BUTTON_JETS_1).hex())
+    assert len(client.sent_frames) == 3
+
     writer.write.reset_mock()
     await call("light", "turn_on", "light.spa_lights")
-    writer.write.assert_called_once_with(build_button_press(BUTTON_LIGHTS))
-    # Every command sent is kept, timestamped, for the diagnostics download
-    assert client.sent_frames[-1].endswith(build_button_press(BUTTON_LIGHTS).hex())
-    assert len(client.sent_frames) == 4
+    writer.write.assert_called_once_with(build_set_light_brightness(100))
     client.handle_frame(parse_frame(J480_LIGHTS_ON))
     await hass.async_block_till_done()
-    assert hass.states.get("light.spa_lights").state == "on"
+    state = hass.states.get("light.spa_lights")
+    assert state.state == "on"
+    assert state.attributes["brightness"] == 255
+
+    # Brightness snaps to the panel's 20 % steps
+    writer.write.reset_mock()
+    await hass.services.async_call(
+        "light", "turn_on",
+        {"entity_id": "light.spa_lights", "brightness_pct": 47}, blocking=True,
+    )
+    writer.write.assert_called_once_with(build_set_light_brightness(40))
+
+    writer.write.reset_mock()
+    await call("light", "turn_off", "light.spa_lights")
+    writer.write.assert_called_once_with(build_set_light_brightness(0))
 
     assert await hass.config_entries.async_unload(entry.entry_id)

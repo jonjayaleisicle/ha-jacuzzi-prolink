@@ -74,3 +74,15 @@ J480_STATUS_BOTH_JETS_ON = bytes.fromhex(
     "7e25ffaf1616230f0b1a920026fa252a0401030000470200016d800000b4"
     "005a0100000000d07e"
 )
+
+# The same J-480's lights stepped up from the topside panel (16 Nov 2026,
+# 08:17), colour-cycling mode 6: the brightness byte is the percentage.
+J480_LIGHTS_40 = bytes.fromhex(
+    "7e21ffaf23800628005f9f00010064000000ff00000000000000010064000000ff7e7e"
+)
+J480_LIGHTS_60 = bytes.fromhex(
+    "7e21ffaf2380063c0013eb00010064000000ff00000000000000010064000000ff807e"
+)
+J480_LIGHTS_100 = bytes.fromhex(
+    "7e21ffaf23800664d7270000010064000000ff00000000000000010064000000ffd57e"
+)
