@@ -248,3 +248,17 @@ def test_build_set_filter2_mode():
     assert (frame.dst, frame.pf, frame.mtype, frame.payload) == (0x0A, 0xBF, 0x1C, b"\x01\x00\x00")
     with pytest.raises(ValueError):
         p.build_set_filter2_mode(3)
+
+
+def test_filter_cycle_request_and_reply():
+    req = p.parse_frame(p.build_panel_request(p.PANEL_REQUEST_FILTER_CYCLE))
+    assert (req.dst, req.pf, req.mtype, req.payload) == (0x0A, 0xBF, 0x19, b"\x01\x00")
+
+    # Example from the J-235 notes: start 17:00, 1 hour, 4 cycles a day
+    reply = p.build_frame(0x0A, p.PF_ADDRESSED, p.MSG_FILTER_CYCLE, bytes([0x11, 0x01, 0x04]))
+    assert p.parse_filter_cycle(reply) == p.FilterCycle(17, 1, 4)
+    # Some replies carry only start and duration
+    short = p.build_frame(0x0A, p.PF_ADDRESSED, p.MSG_FILTER_CYCLE, bytes([0x11, 0x01]))
+    assert p.parse_filter_cycle(short) == p.FilterCycle(17, 1, None)
+    with pytest.raises(p.ProtocolError):
+        p.parse_filter_cycle(p.build_frame(0x0A, p.PF_ADDRESSED, p.MSG_FILTER_CYCLE, bytes([30, 1, 1])))

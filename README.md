@@ -35,6 +35,7 @@ the spa from Home Assistant.
 | Error, Error code | Spa error reporting (0 = no error) |
 | Light brightness | 0–100 %, with colour mode and RGB as attributes |
 | Connected, Last update | Whether the module is sending data |
+| Filter start time, Filter duration, Filter cycles per day | The primary filter cycle settings, which the spa sends when asked (every 5 minutes); experimental |
 | Connection drops | How many times the connection has been lost (kept across restarts), with the last drop and reconnect times |
 | Diagnostics | Spa state, spa clock, WiFi state |
 
@@ -153,7 +154,7 @@ Assistant first, in case the module accepts only one connection at a time.
 | Heating indicator | Confirmed |
 | Secondary filter reading (Frequent / Infrequent / Away) | Confirmed |
 | Changing the heat mode and secondary filter | Confirmed |
-| Primary filter cycle times | Not yet decoded |
+| Primary filter cycle settings (reading) | Not yet confirmed |
 | Filter cycle, ClearRay | Not confirmed |
 
 Reports from other models are welcome. Open an issue with your model and a

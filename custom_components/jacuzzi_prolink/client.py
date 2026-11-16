@@ -15,13 +15,18 @@ from datetime import UTC, datetime
 import logging
 
 from .protocol import (
+    MSG_FILTER_CYCLE,
     MSG_LIGHTS_UPDATE,
     MSG_STATUS_UPDATE,
+    PANEL_REQUEST_FILTER_CYCLE,
+    FilterCycle,
     Frame,
     FrameReader,
     LightStatus,
     ProtocolError,
     SpaStatus,
+    build_panel_request,
+    parse_filter_cycle,
     parse_lights,
     parse_status,
 )
@@ -37,6 +42,8 @@ IDLE_TIMEOUT = 15.0
 CONFIRM_TIMEOUT = 4.0
 # How long a command waits for a (re)connection and a fresh status report
 RECONNECT_WAIT = 20.0
+# The spa only sends its filter cycle settings when asked
+FILTER_POLL_INTERVAL = 300.0
 RECONNECT_MIN = 5.0
 RECONNECT_MAX = 120.0
 RECENT_FRAMES = 30
@@ -77,6 +84,7 @@ class ProLinkClient:
         reconnect_min: float = RECONNECT_MIN,
         confirm_timeout: float = CONFIRM_TIMEOUT,
         reconnect_wait: float = RECONNECT_WAIT,
+        filter_poll_interval: float = FILTER_POLL_INTERVAL,
     ) -> None:
         self.host = host
         self.port = port
@@ -85,9 +93,14 @@ class ProLinkClient:
         self._reconnect_min = reconnect_min
         self._confirm_timeout = confirm_timeout
         self._reconnect_wait = reconnect_wait
+        self._filter_poll_interval = filter_poll_interval
+        self._next_filter_request = 0.0
 
         self.status: SpaStatus | None = None
         self.lights: LightStatus | None = None
+        self.filter_cycle: FilterCycle | None = None
+        self.filter_requests = 0
+        self.filter_replies = 0
         self.connected = False
         self.last_status_at: datetime | None = None
 
@@ -244,6 +257,7 @@ class ProLinkClient:
     async def _listen(self, reader: asyncio.StreamReader) -> bool:
         """Read until the socket closes or goes idle. True if any frame arrived."""
         self._reader = FrameReader()
+        self._next_filter_request = 0.0  # ask again on every new connection
         got_frame = False
         while True:
             try:
@@ -257,6 +271,18 @@ class ProLinkClient:
                 got_frame = True
                 self.handle_frame(frame)
             self.bad_frames = self._reader.bad_frames
+            if got_frame:
+                await self._maybe_request_filter_cycle()
+
+    async def _maybe_request_filter_cycle(self) -> None:
+        """Ask for the filter cycle settings soon after connecting, then periodically."""
+        loop = asyncio.get_running_loop()
+        if loop.time() < self._next_filter_request or self._writer is None:
+            return
+        self._next_filter_request = loop.time() + self._filter_poll_interval
+        self.filter_requests += 1
+        self._writer.write(build_panel_request(PANEL_REQUEST_FILTER_CYCLE))
+        await self._writer.drain()
 
     def handle_frame(self, frame: Frame) -> None:
         """Process one validated frame. Public so tests can drive it directly."""
@@ -278,9 +304,14 @@ class ProLinkClient:
                 elif mtype == MSG_LIGHTS_UPDATE:
                     self.lights = parse_lights(frame.raw)
                     changed = True
+                elif mtype == MSG_FILTER_CYCLE:
+                    self.filter_cycle = parse_filter_cycle(frame.raw)
+                    changed = True
             except ProtocolError as err:
                 _LOGGER.debug("Ignoring frame %s: %s", frame.raw.hex(), err)
 
+        if mtype == MSG_FILTER_CYCLE:
+            self.filter_replies += 1
         if mtype == MSG_STATUS_UPDATE:
             self.last_status_at = datetime.now(UTC)
             self._status_seq += 1
@@ -305,6 +336,8 @@ class ProLinkClient:
             "connected": self.connected,
             "connect_count": self.connect_count,
             "drop_count": self.drop_count,
+            "filter_requests": self.filter_requests,
+            "filter_replies": self.filter_replies,
             "last_drop_at": self.last_drop_at.isoformat() if self.last_drop_at else None,
             "last_reconnect_at": self.last_reconnect_at.isoformat()
             if self.last_reconnect_at

@@ -362,3 +362,22 @@ async def test_connection_drops_sensor_survives_restart(hass: HomeAssistant) -> 
     assert hass.states.get("sensor.spa_connection_drops").attributes["last_reconnect"]
 
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_filter_cycle_sensors(hass: HomeAssistant) -> None:
+    from custom_components.jacuzzi_prolink import protocol as p
+
+    entry, _ = await _setup(hass)
+    await _feed(hass, entry, J480_STATUS)
+    # The spa has not answered a filter request yet
+    assert hass.states.get("sensor.spa_filter_start_time").state == STATE_UNAVAILABLE
+
+    reply = p.build_frame(0x0A, p.PF_ADDRESSED, p.MSG_FILTER_CYCLE, bytes([0x11, 0x02, 0x04]))
+    await _feed(hass, entry, reply)
+    assert hass.states.get("sensor.spa_filter_start_time").state == "17:00"
+    duration = hass.states.get("sensor.spa_filter_duration")
+    assert float(duration.state) == 2
+    assert duration.attributes["unit_of_measurement"] == "h"
+    assert hass.states.get("sensor.spa_filter_cycles_per_day").state == "4"
+
+    assert await hass.config_entries.async_unload(entry.entry_id)

@@ -137,6 +137,15 @@
             "name": "Last reconnect"
           }
         }
+      },
+      "filter_start": {
+        "name": "Filter start time"
+      },
+      "filter_duration": {
+        "name": "Filter duration"
+      },
+      "filter_cycles_per_day": {
+        "name": "Filter cycles per day"
       }
     },
     "button": {

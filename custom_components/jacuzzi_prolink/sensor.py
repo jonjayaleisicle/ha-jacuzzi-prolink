@@ -13,14 +13,14 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.const import EntityCategory, UnitOfTemperature
+from homeassistant.const import EntityCategory, UnitOfTemperature, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import JacuzziConfigEntry
 from .client import ProLinkClient
 from .entity import JacuzziEntity
-from .protocol import TSCALE_C, SpaStatus
+from .protocol import TSCALE_C, FilterCycle, SpaStatus
 
 PUMP_STATES = ["off", "low", "high"]
 
@@ -181,6 +181,7 @@ async def async_setup_entry(
         JacuzziLightBrightnessSensor(coordinator),
         JacuzziLastUpdateSensor(coordinator),
         JacuzziConnectionDropsSensor(coordinator),
+        *(JacuzziFilterCycleSensor(coordinator, d) for d in FILTER_CYCLE_SENSORS),
     ]
     async_add_entities(entities)
 
@@ -301,3 +302,53 @@ class JacuzziConnectionDropsSensor(JacuzziEntity, RestoreSensor):
             "last_drop": iso(client.last_drop_at),
             "last_reconnect": iso(client.last_reconnect_at),
         }
+
+
+@dataclass(frozen=True, kw_only=True)
+class JacuzziFilterCycleDescription(SensorEntityDescription):
+    """Describes a primary filter cycle setting."""
+
+    value_fn: Callable[[FilterCycle], int | str | None]
+
+
+FILTER_CYCLE_SENSORS: tuple[JacuzziFilterCycleDescription, ...] = (
+    JacuzziFilterCycleDescription(
+        key="filter_start",
+        translation_key="filter_start",
+        icon="mdi:clock-start",
+        value_fn=lambda f: f"{f.start_hour:02d}:00",
+    ),
+    JacuzziFilterCycleDescription(
+        key="filter_duration",
+        translation_key="filter_duration",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.HOURS,
+        icon="mdi:timer-outline",
+        value_fn=lambda f: f.duration_hours,
+    ),
+    JacuzziFilterCycleDescription(
+        key="filter_cycles_per_day",
+        translation_key="filter_cycles_per_day",
+        icon="mdi:counter",
+        value_fn=lambda f: f.cycles_per_day,
+    ),
+)
+
+
+class JacuzziFilterCycleSensor(JacuzziEntity, SensorEntity):
+    """Primary filter cycle setting, which the spa sends only when asked."""
+
+    entity_description: JacuzziFilterCycleDescription
+
+    def __init__(self, coordinator, description: JacuzziFilterCycleDescription) -> None:
+        super().__init__(coordinator, description.key)
+        self.entity_description = description
+
+    @property
+    def available(self) -> bool:
+        return super().available and self.coordinator.client.filter_cycle is not None
+
+    @property
+    def native_value(self) -> int | str | None:
+        cycle = self.coordinator.client.filter_cycle
+        return None if cycle is None else self.entity_description.value_fn(cycle)

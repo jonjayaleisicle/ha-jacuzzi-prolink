@@ -93,6 +93,7 @@ class FakeModule:
         self.behaviour = list(behaviour)
         self.connections = 0
         self.commands: list[bytes] = []
+        self.panel_requests = 0
         self.set_raw = STATUS[14]
         self.server = None
 
@@ -121,6 +122,13 @@ class FakeModule:
         try:
             while data := await reader.read(1024):
                 for frame in frames.feed(data):
+                    if frame.mtype == p.MSG_PANEL_REQUEST:
+                        self.panel_requests += 1
+                        # Reply as the J-235 notes describe: 17:00, 1 h, 4 per day
+                        writer.write(
+                            p.build_frame(0x0A, p.PF_ADDRESSED, p.MSG_FILTER_CYCLE, b"\x11\x01\x04")
+                        )
+                        continue
                     self.commands.append(frame.raw)
                     if mode in ("apply", "stall"):
                         self.set_raw = frame.payload[0]
@@ -259,3 +267,27 @@ async def test_drops_are_counted_but_closing_is_not(socket_enabled):
         server.close()
         await server.wait_closed()
     assert client.drop_count == 1  # closing down is not a drop
+
+
+@pytest.mark.allow_hosts(["127.0.0.1"])
+async def test_filter_cycle_is_requested_and_decoded(socket_enabled):
+    fake = FakeModule(["apply"])
+    async with fake as port:
+        client = ProLinkClient("127.0.0.1", port, filter_poll_interval=0.2)
+        task = asyncio.create_task(client.run())
+        try:
+            for _ in range(100):
+                if client.filter_cycle is not None and fake.panel_requests >= 2:
+                    break
+                await asyncio.sleep(0.05)
+            assert client.filter_cycle.start_hour == 17
+            assert client.filter_cycle.duration_hours == 1
+            assert client.filter_cycle.cycles_per_day == 4
+            assert fake.panel_requests >= 2  # asked again after the interval
+            assert client.filter_replies >= 1
+            assert fake.commands == []  # a request is not a command
+        finally:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+            await client.close()

@@ -31,6 +31,10 @@ PF_ADDRESSED = 0xBF
 MSG_STATUS_UPDATE = 0x16
 MSG_BUTTON_PRESS = 0x17
 MSG_LIGHTS_UPDATE = 0x23
+MSG_PANEL_REQUEST = 0x19  # ask the spa for a settings message
+MSG_FILTER_CYCLE = 0x1B  # the spa's reply: primary filter cycle settings
+
+PANEL_REQUEST_FILTER_CYCLE = (0x01, 0x00)
 
 # Commands we send
 MSG_SET_TIME = 0x18
@@ -408,4 +412,43 @@ def parse_lights(frame: bytes) -> LightStatus:
         red=d[8],
         green=d[9],
         blue=d[10],
+    )
+
+
+def build_panel_request(request: tuple[int, int]) -> bytes:
+    """Frame that asks the spa for a settings message (type 0x19).
+
+    Payload 01 00 asks for the primary filter cycle, which the spa answers
+    with a 0x1B message. From the J-235 work in pyjacuzzi.
+    """
+    return build_frame(PROLINK_CHANNEL, PF_ADDRESSED, MSG_PANEL_REQUEST, bytes(request))
+
+
+@dataclass(frozen=True)
+class FilterCycle:
+    """Primary filter cycle settings (message type 0x1B, sent on request).
+
+    Byte 5 start hour (24 h), 6 duration in hours (the ProLink app calls it
+    "end hour", but it is the duration), 7 cycles per day (1, 2, 3, 4 or 8;
+    not always present). Decoded on a J-235; unconfirmed on other models.
+    """
+
+    start_hour: int
+    duration_hours: int
+    cycles_per_day: int | None
+
+
+def parse_filter_cycle(frame: bytes) -> FilterCycle:
+    """Decode a complete 0x1B filter cycle frame (flags included)."""
+    d = bytes(frame)
+    if len(d) < 9:
+        raise ProtocolError("filter cycle frame too short")
+    if d[4] != MSG_FILTER_CYCLE:
+        raise ProtocolError("not a filter cycle message")
+    if d[5] > 23:
+        raise ProtocolError("filter start hour out of range")
+    return FilterCycle(
+        start_hour=d[5],
+        duration_hours=d[6],
+        cycles_per_day=d[7] if len(d) >= 10 else None,
     )

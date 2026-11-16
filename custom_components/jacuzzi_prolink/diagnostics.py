@@ -23,4 +23,5 @@ async def async_get_config_entry_diagnostics(
         "client": client.diagnostics(),
         "status": asdict(client.status) if client.status else None,
         "lights": asdict(client.lights) if client.lights else None,
+        "filter_cycle": asdict(client.filter_cycle) if client.filter_cycle else None,
     }
