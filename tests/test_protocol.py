@@ -181,3 +181,13 @@ def test_build_set_light_brightness():
     assert frame.payload == bytes([0x2F, 0x01, 0, 0, 0, 0, 60, 0])
     with pytest.raises(ValueError):
         p.build_set_light_brightness(101)
+
+
+def test_j480_light_brightness_set_from_ha():
+    from .frames import J480_LIGHTS_FROM_HA_20, J480_LIGHTS_FROM_HA_80
+
+    assert p.parse_lights(J480_LIGHTS_FROM_HA_20).brightness == 20
+    assert p.parse_lights(J480_LIGHTS_FROM_HA_80).brightness == 80
+    # The commands that produced them, as logged in the diagnostics
+    assert p.build_set_light_brightness(20).hex() == "7e0d0abf212f01000000001400fa7e"
+    assert p.build_set_light_brightness(80).hex() == "7e0d0abf212f01000000005000f57e"

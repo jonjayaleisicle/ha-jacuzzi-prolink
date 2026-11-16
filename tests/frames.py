@@ -86,3 +86,14 @@ J480_LIGHTS_60 = bytes.fromhex(
 J480_LIGHTS_100 = bytes.fromhex(
     "7e21ffaf23800664d7270000010064000000ff00000000000000010064000000ffd57e"
 )
+
+# The same J-480's lights set from Home Assistant with the 0x21 / 2F
+# brightness command (16 Nov 2026, 10:20): each step was reported within a
+# second. Blocks 3 and 4 of the payload mirror block 1 when set this way,
+# but stay off/default when the panel button is used.
+J480_LIGHTS_FROM_HA_20 = bytes.fromhex(
+    "7e21ffaf23800614ff000000010064000000ff800614ff000000800614ff000000417e"
+)
+J480_LIGHTS_FROM_HA_80 = bytes.fromhex(
+    "7e21ffaf2380065000b24c00010064000000ff80065000b24c0080065000b24c00e37e"
+)
