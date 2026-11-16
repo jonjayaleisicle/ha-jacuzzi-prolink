@@ -328,3 +328,37 @@ async def test_secondary_filter_select(hass: HomeAssistant) -> None:
     assert hass.states.get("select.spa_secondary_filter").state == "infrequent"
 
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_connection_drops_sensor_survives_restart(hass: HomeAssistant) -> None:
+    from homeassistant.core import State
+    from pytest_homeassistant_custom_component.common import (
+        mock_restore_cache_with_extra_data,
+    )
+
+    mock_restore_cache_with_extra_data(
+        hass,
+        [
+            (
+                State("sensor.spa_connection_drops", "7"),
+                {"native_value": 7, "native_unit_of_measurement": None},
+            )
+        ],
+    )
+    entry, _ = await _setup(hass)
+    client = entry.runtime_data.client
+
+    # Shown even before the spa has connected
+    assert hass.states.get("sensor.spa_connection_drops").state == "7"
+
+    await _feed(hass, entry, J480_STATUS)
+    client._set_connected(False)  # the module drops the connection
+    await hass.async_block_till_done()
+    state = hass.states.get("sensor.spa_connection_drops")
+    assert state.state == "8"
+    assert state.attributes["last_drop"] is not None
+
+    await _feed(hass, entry, J480_STATUS)  # back again
+    assert hass.states.get("sensor.spa_connection_drops").attributes["last_reconnect"]
+
+    assert await hass.config_entries.async_unload(entry.entry_id)

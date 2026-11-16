@@ -222,3 +222,40 @@ async def test_command_never_confirmed_raises(socket_enabled):
 
         await _with_client(port, body)
     assert len(fake.commands) == 2
+
+
+@pytest.mark.allow_hosts(["127.0.0.1"])
+async def test_drops_are_counted_but_closing_is_not(socket_enabled):
+    connections = 0
+
+    async def handle(reader, writer):
+        nonlocal connections
+        connections += 1
+        writer.write(STATUS)
+        await writer.drain()
+        if connections == 1:
+            writer.close()  # the module drops us once
+        else:
+            await reader.read()
+            writer.close()
+
+    server = await asyncio.start_server(handle, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    client = ProLinkClient("127.0.0.1", port, reconnect_min=0.05)
+    task = asyncio.create_task(client.run())
+    try:
+        for _ in range(100):
+            if connections >= 2 and client.connected:
+                break
+            await asyncio.sleep(0.05)
+        assert client.drop_count == 1
+        assert client.last_drop_at is not None
+        assert client.last_reconnect_at >= client.last_drop_at
+    finally:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+        await client.close()
+        server.close()
+        await server.wait_closed()
+    assert client.drop_count == 1  # closing down is not a drop

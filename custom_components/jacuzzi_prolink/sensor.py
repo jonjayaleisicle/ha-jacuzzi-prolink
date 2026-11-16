@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from homeassistant.components.sensor import (
+    RestoreSensor,
     SensorDeviceClass,
     SensorEntity,
     SensorEntityDescription,
@@ -179,6 +180,7 @@ async def async_setup_entry(
     entities += [
         JacuzziLightBrightnessSensor(coordinator),
         JacuzziLastUpdateSensor(coordinator),
+        JacuzziConnectionDropsSensor(coordinator),
     ]
     async_add_entities(entities)
 
@@ -256,3 +258,46 @@ class JacuzziLastUpdateSensor(JacuzziEntity, SensorEntity):
     def native_value(self) -> datetime | None:
         client: ProLinkClient = self.coordinator.client
         return client.last_status_at
+
+
+class JacuzziConnectionDropsSensor(JacuzziEntity, RestoreSensor):
+    """How many times the connection to the ProLink module has been lost.
+
+    The total survives Home Assistant restarts. Its history shows when the
+    drops happened, to help track down WiFi problems.
+    """
+
+    _attr_translation_key = "connection_drops"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_icon = "mdi:wifi-alert"
+
+    def __init__(self, coordinator) -> None:
+        super().__init__(coordinator, "connection_drops")
+        self._restored = 0
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_sensor_data()
+        if last is not None and isinstance(last.native_value, (int, float)):
+            self._restored = int(last.native_value)
+
+    @property
+    def available(self) -> bool:
+        return True  # most useful exactly when the spa is offline
+
+    @property
+    def native_value(self) -> int:
+        return self._restored + self.coordinator.client.drop_count
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str | None]:
+        client: ProLinkClient = self.coordinator.client
+
+        def iso(when: datetime | None) -> str | None:
+            return when.isoformat() if when else None
+
+        return {
+            "last_drop": iso(client.last_drop_at),
+            "last_reconnect": iso(client.last_reconnect_at),
+        }

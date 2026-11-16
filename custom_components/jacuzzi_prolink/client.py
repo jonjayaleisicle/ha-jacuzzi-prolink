@@ -97,6 +97,10 @@ class ProLinkClient:
         self.sent_frames: deque[str] = deque(maxlen=SENT_FRAMES)
         self.bad_frames = 0
         self.connect_count = 0
+        # A drop is losing a connection that was delivering data
+        self.drop_count = 0
+        self.last_drop_at: datetime | None = None
+        self.last_reconnect_at: datetime | None = None
 
         self._reader = FrameReader()
         self._last_raw: dict[int, bytes] = {}
@@ -219,8 +223,11 @@ class ProLinkClient:
         self.sent_frames.append(f"{_stamp()} {message}")
 
     async def close(self) -> None:
+        """Close for good (unload or shutdown); not counted as a drop."""
         await self._close_writer()
-        self._set_connected(False)
+        if self.connected:
+            self.connected = False
+            self._notify()
 
     async def _close_writer(self) -> None:
         writer, self._writer = self._writer, None
@@ -256,6 +263,8 @@ class ProLinkClient:
         mtype = frame.mtype
         self.frame_counts[mtype] += 1
         changed = not self.connected
+        if changed and self.drop_count:
+            self.last_reconnect_at = datetime.now(UTC)
         self.connected = True
 
         if self._last_raw.get(mtype) != frame.raw:
@@ -281,6 +290,9 @@ class ProLinkClient:
 
     def _set_connected(self, connected: bool) -> None:
         if self.connected != connected:
+            if not connected:
+                self.drop_count += 1
+                self.last_drop_at = datetime.now(UTC)
             self.connected = connected
             self._notify()
 
@@ -292,6 +304,11 @@ class ProLinkClient:
         return {
             "connected": self.connected,
             "connect_count": self.connect_count,
+            "drop_count": self.drop_count,
+            "last_drop_at": self.last_drop_at.isoformat() if self.last_drop_at else None,
+            "last_reconnect_at": self.last_reconnect_at.isoformat()
+            if self.last_reconnect_at
+            else None,
             "bad_frames": self.bad_frames,
             "last_status_at": self.last_status_at.isoformat()
             if self.last_status_at

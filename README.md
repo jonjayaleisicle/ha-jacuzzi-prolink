@@ -35,6 +35,7 @@ the spa from Home Assistant.
 | Error, Error code | Spa error reporting (0 = no error) |
 | Light brightness | 0–100 %, with colour mode and RGB as attributes |
 | Connected, Last update | Whether the module is sending data |
+| Connection drops | How many times the connection has been lost (kept across restarts), with the last drop and reconnect times |
 | Diagnostics | Spa state, spa clock, WiFi state |
 
 Hidden by default, because their meaning is not confirmed: Pump 3, plumbing
@@ -109,7 +110,10 @@ straight away.
 - **Entities unavailable / "Connected" off.** The ProLink module can doze off
   when the spa has been idle. The integration reconnects by itself; pressing a
   button on the topside panel usually wakes it.
-- **Connection keeps dropping.** The module may accept only one connection at
+- **Connection keeps dropping.** Check the **Connection drops** sensor's
+  history to see how often and when. The ProLink module sits inside the spa
+  cabinet, which weakens its 2.4 GHz WiFi signal; an access point or mesh node
+  nearer the spa usually helps. Also, the module may accept only one connection at
   a time, so the Jacuzzi phone app could push Home Assistant off. Close the app
   and the integration reconnects within a few seconds.
 - **"The spa did not respond to the command".** The command was sent twice

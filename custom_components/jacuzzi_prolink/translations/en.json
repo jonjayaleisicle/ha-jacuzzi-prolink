@@ -126,6 +126,17 @@
       },
       "last_update": {
         "name": "Last update"
+      },
+      "connection_drops": {
+        "name": "Connection drops",
+        "state_attributes": {
+          "last_drop": {
+            "name": "Last drop"
+          },
+          "last_reconnect": {
+            "name": "Last reconnect"
+          }
+        }
       }
     },
     "button": {
