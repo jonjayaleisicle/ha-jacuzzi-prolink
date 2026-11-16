@@ -264,3 +264,40 @@ async def test_command_errors_are_reported(hass: HomeAssistant) -> None:
         await _call(hass, "button", "press", "button.spa_sync_spa_clock")
 
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_heat_mode_select_and_heating(hass: HomeAssistant) -> None:
+    from custom_components.jacuzzi_prolink.protocol import (
+        HEAT_MODE_AUTO,
+        build_set_heat_mode,
+    )
+
+    from .frames import J480_STATUS_AUTO_HEATING, J480_STATUS_ECO_IDLE
+
+    entry, sent = await _setup(hass)
+    await _feed(hass, entry, J480_STATUS_ECO_IDLE)
+    assert hass.states.get("select.spa_heat_mode").state == "eco"
+    assert hass.states.get("binary_sensor.spa_heating").state == "off"
+    assert hass.states.get("climate.spa").attributes["hvac_action"] == "idle"
+
+    # Choosing the current mode sends nothing
+    await hass.services.async_call(
+        "select", "select_option",
+        {"entity_id": "select.spa_heat_mode", "option": "eco"}, blocking=True,
+    )
+    assert sent == []
+
+    await hass.services.async_call(
+        "select", "select_option",
+        {"entity_id": "select.spa_heat_mode", "option": "auto"}, blocking=True,
+    )
+    frame, confirmed = sent[-1]
+    assert frame == build_set_heat_mode(HEAT_MODE_AUTO)
+    assert not confirmed()
+    await _feed(hass, entry, J480_STATUS_AUTO_HEATING)  # real panel capture
+    assert confirmed()
+    assert hass.states.get("select.spa_heat_mode").state == "auto"
+    assert hass.states.get("binary_sensor.spa_heating").state == "on"
+    assert hass.states.get("climate.spa").attributes["hvac_action"] == "heating"
+
+    assert await hass.config_entries.async_unload(entry.entry_id)

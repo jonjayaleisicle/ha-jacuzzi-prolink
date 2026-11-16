@@ -97,3 +97,19 @@ J480_LIGHTS_FROM_HA_20 = bytes.fromhex(
 J480_LIGHTS_FROM_HA_80 = bytes.fromhex(
     "7e21ffaf2380065000b24c00010064000000ff80065000b24c0080065000b24c00e37e"
 )
+
+# The same J-480 switched between heat modes at the topside panel
+# (16 Nov 2026): Day at 12:14:22, Eco at 12:14:29, Auto at 12:14:34. In Day
+# and Auto the spa started heating straight away (set 21 C, water 18 C).
+J480_STATUS_DAY_HEATING = bytes.fromhex(
+    "7e25ffaf160c0d300b1a620024fa2a020601030000450200016d800000b3"
+    "00590100000000847e"
+)
+J480_STATUS_ECO_IDLE = bytes.fromhex(
+    "7e25ffaf160c0d300b1a520024fa2a000000030000450200016d800000b3"
+    "00590100000000a67e"
+)
+J480_STATUS_AUTO_HEATING = bytes.fromhex(
+    "7e25ffaf160c0d300b1a420024fa2a020601030000450200016d800000b3"
+    "00590100000000517e"
+)

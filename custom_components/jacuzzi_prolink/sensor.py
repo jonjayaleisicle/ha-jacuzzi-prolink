@@ -115,12 +115,6 @@ SENSORS: tuple[JacuzziSensorDescription, ...] = (
         value_fn=lambda s: s.error_code,
     ),
     JacuzziSensorDescription(
-        key="heat_mode_state",
-        translation_key="heat_mode_state",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda s: s.heat_mode_state,
-    ),
-    JacuzziSensorDescription(
         key="spa_state",
         translation_key="spa_state",
         entity_category=EntityCategory.DIAGNOSTIC,

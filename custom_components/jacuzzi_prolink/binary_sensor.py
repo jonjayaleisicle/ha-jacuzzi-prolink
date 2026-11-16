@@ -34,6 +34,12 @@ BINARY_SENSORS: tuple[JacuzziBinaryDescription, ...] = (
         value_fn=lambda s: bool(s.primary_on),
     ),
     JacuzziBinaryDescription(
+        key="heating",
+        translation_key="heating",
+        device_class=BinarySensorDeviceClass.HEAT,
+        value_fn=lambda s: s.heating,
+    ),
+    JacuzziBinaryDescription(
         key="clearray",
         translation_key="clearray",
         device_class=BinarySensorDeviceClass.RUNNING,

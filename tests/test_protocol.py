@@ -191,3 +191,37 @@ def test_j480_light_brightness_set_from_ha():
     # The commands that produced them, as logged in the diagnostics
     assert p.build_set_light_brightness(20).hex() == "7e0d0abf212f01000000001400fa7e"
     assert p.build_set_light_brightness(80).hex() == "7e0d0abf212f01000000005000f57e"
+
+
+def test_j480_heat_modes_and_heating():
+    from .frames import (
+        J480_STATUS_AUTO_HEATING,
+        J480_STATUS_DAY_HEATING,
+        J480_STATUS_ECO_IDLE,
+    )
+
+    for raw in (J480_STATUS_AUTO_HEATING, J480_STATUS_DAY_HEATING, J480_STATUS_ECO_IDLE):
+        p.parse_frame(raw)  # copied exactly: CRC still valid
+    auto = p.parse_status(J480_STATUS_AUTO_HEATING)
+    eco = p.parse_status(J480_STATUS_ECO_IDLE)
+    day = p.parse_status(J480_STATUS_DAY_HEATING)
+    assert (auto.heat_mode, eco.heat_mode, day.heat_mode) == (
+        p.HEAT_MODE_AUTO,
+        p.HEAT_MODE_ECO,
+        p.HEAT_MODE_DAY,
+    )
+    assert auto.heating and day.heating and not eco.heating
+    assert auto.set_temp == 21.0 and auto.current_temp == 18.0
+    # Earlier captures: always Eco, and the circulation pump running for the
+    # jets without heating is not "heating"
+    from .frames import J480_STATUS, J480_STATUS_JETS_OFF
+
+    assert p.parse_status(J480_STATUS).heat_mode == p.HEAT_MODE_ECO
+    assert not p.parse_status(J480_STATUS_JETS_OFF).heating
+
+
+def test_build_set_heat_mode():
+    frame = p.parse_frame(p.build_set_heat_mode(p.HEAT_MODE_AUTO))
+    assert (frame.dst, frame.pf, frame.mtype, frame.payload) == (0x0A, 0xBF, 0x1A, b"\x00")
+    with pytest.raises(ValueError):
+        p.build_set_heat_mode(3)

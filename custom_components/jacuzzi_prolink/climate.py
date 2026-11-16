@@ -8,6 +8,7 @@ from homeassistant.components.climate import (
     ATTR_TEMPERATURE,
     ClimateEntity,
     ClimateEntityFeature,
+    HVACAction,
     HVACMode,
 )
 from homeassistant.const import PRECISION_HALVES, PRECISION_WHOLE, UnitOfTemperature
@@ -76,6 +77,13 @@ class JacuzziClimate(JacuzziEntity, ClimateEntity):
     def current_temperature(self) -> float | None:
         status = self.coordinator.client.status
         return None if status is None else status.current_temp
+
+    @property
+    def hvac_action(self) -> HVACAction | None:
+        status = self.coordinator.client.status
+        if status is None:
+            return None
+        return HVACAction.HEATING if status.heating else HVACAction.IDLE
 
     @property
     def target_temperature(self) -> float | None:

@@ -16,7 +16,8 @@ the spa from Home Assistant.
 
 | Entity | What it does |
 | --- | --- |
-| Thermostat | Shows the water temperature and sets the target (18.5–40 °C in 0.5 ° steps, or 65–104 °F) |
+| Thermostat | Shows the water temperature, whether the spa is heating, and sets the target (18.5–40 °C in 0.5 ° steps, or 65–104 °F) |
+| Heat mode | **Auto** (heat at all times), **Eco** (heat only 5pm–7am) or **Day** (heat only 7am–5pm) |
 | Jets 1, Jets 2 | Turn each set of jets on and off |
 | Lights | On, off and brightness in the panel's five steps (20–100 %) |
 | Sync spa clock | Sets the spa's date and clock to Home Assistant's local time |
@@ -27,12 +28,13 @@ the spa from Home Assistant.
 | --- | --- |
 | Water temperature, Target temperature | °C or °F, following the spa's own setting |
 | Circulation pump, Pump 1, Pump 2 | Off / Low / High (single-speed jets show High when on) |
+| Heating | Whether the heater is running |
 | Filter cycle, ClearRay, Water flow | Running or not |
 | Panel lock | Whether the topside panel is locked |
 | Error, Error code | Spa error reporting (0 = no error) |
 | Light brightness | 0–100 %, with colour mode and RGB as attributes |
 | Connected, Last update | Whether the module is sending data |
-| Diagnostics | Heat mode state, spa state, spa clock, WiFi state |
+| Diagnostics | Spa state, spa clock, WiFi state |
 
 Hidden by default, because their meaning is not confirmed: Pump 3, plumbing
 temperature, and the ClearRay, water and filter timers. Enable them under
@@ -81,9 +83,16 @@ The spa's clock drifts and resets after a power cut. To keep it in sync,
 create an automation that presses **Sync spa clock** once a day, for example
 at 03:00, and when the **Connected** sensor turns on.
 
+### Why the spa isn't heating
+
+In **Eco** the spa only heats between 5pm and 7am, and in **Day** only between
+7am and 5pm. Outside those hours you can still change the target temperature,
+but the heater waits for its window. Switch **Heat mode** to **Auto** to heat
+straight away.
+
 ### How commands work
 
-- **Target temperature, lights and clock** are set directly to the value you
+- **Target temperature, heat mode, lights and clock** are set directly to the value you
   ask for.
 - **Jets** work by simulating a press of the panel's jets button, which
   toggles them. The integration only presses when the jets are not already in
@@ -135,7 +144,11 @@ Assistant first, in case the module accepts only one connection at a time.
 | Lights on/off and brightness | Confirmed |
 | Circulation pump | Confirmed |
 | Light colours and cycle speeds | Not yet decoded |
-| Filter cycle, ClearRay, heating indicator | Not confirmed |
+| Heat mode reading (Auto / Eco / Day) | Confirmed |
+| Heating indicator | Confirmed |
+| Changing the heat mode | Not yet tested |
+| Filter frequency, filter cycle times | Not yet decoded |
+| Filter cycle, ClearRay | Not confirmed |
 
 Reports from other models are welcome. Open an issue with your model and a
 diagnostics download.

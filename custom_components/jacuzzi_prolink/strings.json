@@ -40,6 +40,9 @@
       },
       "connected": {
         "name": "Connected"
+      },
+      "heating": {
+        "name": "Heating"
       }
     },
     "sensor": {
@@ -86,9 +89,6 @@
       },
       "error_code": {
         "name": "Error code"
-      },
-      "heat_mode_state": {
-        "name": "Heat mode state"
       },
       "spa_state": {
         "name": "Spa state"
@@ -144,6 +144,16 @@
     "light": {
       "lights": {
         "name": "Lights"
+      }
+    },
+    "select": {
+      "heat_mode": {
+        "name": "Heat mode",
+        "state": {
+          "auto": "Auto",
+          "eco": "Eco",
+          "day": "Day"
+        }
       }
     }
   },

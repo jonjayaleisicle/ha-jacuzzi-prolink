@@ -35,6 +35,11 @@ MSG_LIGHTS_UPDATE = 0x23
 # Commands we send
 MSG_SET_TIME = 0x18
 MSG_SET_TEMP = 0x20
+MSG_SET_HEAT_MODE = 0x1A
+
+HEAT_MODE_AUTO = 0  # keep the set temperature at all times
+HEAT_MODE_ECO = 1  # heat only between 5pm and 7am
+HEAT_MODE_DAY = 2  # heat only between 7am and 5pm
 
 # Topside panel button codes, sent as MSG_BUTTON_PRESS. A press toggles.
 BUTTON_JETS_1 = 0x04
@@ -134,6 +139,17 @@ def build_set_light_brightness(percent: int) -> bytes:
     return build_frame(PROLINK_CHANNEL, PF_ADDRESSED, MSG_SET_LIGHTS, payload)
 
 
+def build_set_heat_mode(mode: int) -> bytes:
+    """Frame that selects the heat mode (message type 0x1A): 0 Auto, 1 Eco, 2 Day.
+
+    From HeatModePushed() in the decompiled ProLink app. The spa reports the
+    mode in bits 5-4 of status byte 10, with the same numbering.
+    """
+    if mode not in (HEAT_MODE_AUTO, HEAT_MODE_ECO, HEAT_MODE_DAY):
+        raise ValueError("unknown heat mode")
+    return build_frame(PROLINK_CHANNEL, PF_ADDRESSED, MSG_SET_HEAT_MODE, bytes([mode]))
+
+
 def build_button_press(code: int) -> bytes:
     """Frame that simulates pressing a topside panel button (type 0x17).
 
@@ -230,7 +246,7 @@ class SpaStatus:
     month: int
     year: int
     filter2_mode: int
-    heat_mode_state: int
+    heat_mode: int  # HEAT_MODE_AUTO / _ECO / _DAY
     spa_state: int
     error_code: int
     temp_scale: int  # TSCALE_F or TSCALE_C
@@ -241,6 +257,7 @@ class SpaStatus:
     primary_on: int
     blower_on: int
     uv_on: int
+    heating: bool
     flow_switch: int
     twelve_hour: bool
     setting_lock: int
@@ -264,15 +281,16 @@ def parse_status(frame: bytes) -> SpaStatus:
     5, 6   hour, minute
     7      bits 7-5 day of week (1 = Monday), bits 4-0 day of month
     8, 9   month, year since 2000
-    10     bits 7-6 secondary filter mode, 5-4 heat mode state,
-           3-0 spa state
+    10     bits 7-6 secondary filter mode, 5-4 heat mode (0 Auto, 1 Eco,
+           2 Day; confirmed on a J-480), 3-0 spa state
     11     error code (0 = none)
     12     current water temperature; 0xFF = no reading
     14     set temperature
     15     pump states, two bits each: 1-0 pump 0 (circulation), 3-2 pump 1,
            5-4 pump 2, 7-6 pump 3 (0 = off, 1 = low, 2 = high)
     16     two bits each: 7-6 secondary on, 5-4 primary on, 3-2 blower,
-           1-0 UV (positions uncertain)
+           1-0 UV (positions uncertain). On a J-480, bits 1-0 read 2 while
+           heating and 1 while the circulation pump runs without heating.
     17     believed to be the flow switch
     18     bit 0 temperature scale (1 = Celsius), bits 2-1 clear = 12 h clock
     20     bits 5-4 setting lock, 3-2 access lock, 1-0 service lock
@@ -307,7 +325,7 @@ def parse_status(frame: bytes) -> SpaStatus:
         month=d[8],
         year=d[9] + 2000,
         filter2_mode=(d[10] & 0xC0) >> 6,
-        heat_mode_state=(d[10] & 0x30) >> 4,
+        heat_mode=(d[10] & 0x30) >> 4,
         spa_state=d[10] & 0x0F,
         error_code=d[11],
         temp_scale=temp_scale,
@@ -323,6 +341,7 @@ def parse_status(frame: bytes) -> SpaStatus:
         primary_on=(d[16] & 0x30) >> 4,
         blower_on=(d[16] & 0x0C) >> 2,
         uv_on=d[16] & 0x03,
+        heating=(d[16] & 0x03) == 2,
         flow_switch=d[17],
         twelve_hour=(d[18] & 0x06) == 0,
         setting_lock=(d[20] & 0x30) >> 4,
