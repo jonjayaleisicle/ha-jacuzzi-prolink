@@ -36,6 +36,13 @@ MSG_LIGHTS_UPDATE = 0x23
 MSG_SET_TIME = 0x18
 MSG_SET_TEMP = 0x20
 MSG_SET_HEAT_MODE = 0x1A
+MSG_SET_FILTER2_MODE = 0x1C
+
+# Secondary filtration (status byte 10 bits 7-6; confirmed on a J-480).
+# The J-235 notes call these Holiday, Light and Heavy.
+FILTER2_AWAY = 0
+FILTER2_INFREQUENT = 1
+FILTER2_FREQUENT = 2
 
 HEAT_MODE_AUTO = 0  # keep the set temperature at all times
 HEAT_MODE_ECO = 1  # heat only between 5pm and 7am
@@ -148,6 +155,18 @@ def build_set_heat_mode(mode: int) -> bytes:
     if mode not in (HEAT_MODE_AUTO, HEAT_MODE_ECO, HEAT_MODE_DAY):
         raise ValueError("unknown heat mode")
     return build_frame(PROLINK_CHANNEL, PF_ADDRESSED, MSG_SET_HEAT_MODE, bytes([mode]))
+
+
+def build_set_filter2_mode(mode: int) -> bytes:
+    """Frame that sets secondary filtration (type 0x1C): 0 Away, 1 Infrequent, 2 Frequent.
+
+    Payload <mode> 00 00, from Jacuzzi-RS485's change_filter2_cycle (J-235).
+    """
+    if mode not in (FILTER2_AWAY, FILTER2_INFREQUENT, FILTER2_FREQUENT):
+        raise ValueError("unknown filter mode")
+    return build_frame(
+        PROLINK_CHANNEL, PF_ADDRESSED, MSG_SET_FILTER2_MODE, bytes([mode, 0, 0])
+    )
 
 
 def build_button_press(code: int) -> bytes:
@@ -281,7 +300,8 @@ def parse_status(frame: bytes) -> SpaStatus:
     5, 6   hour, minute
     7      bits 7-5 day of week (1 = Monday), bits 4-0 day of month
     8, 9   month, year since 2000
-    10     bits 7-6 secondary filter mode, 5-4 heat mode (0 Auto, 1 Eco,
+    10     bits 7-6 secondary filter mode (0 Away, 1 Infrequent, 2 Frequent),
+           5-4 heat mode (0 Auto, 1 Eco,
            2 Day; confirmed on a J-480), 3-0 spa state
     11     error code (0 = none)
     12     current water temperature; 0xFF = no reading

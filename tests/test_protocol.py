@@ -225,3 +225,26 @@ def test_build_set_heat_mode():
     assert (frame.dst, frame.pf, frame.mtype, frame.payload) == (0x0A, 0xBF, 0x1A, b"\x00")
     with pytest.raises(ValueError):
         p.build_set_heat_mode(3)
+
+
+def test_j480_secondary_filter_modes():
+    from .frames import (
+        J480_STATUS_FILTER_AWAY,
+        J480_STATUS_FILTER_FREQUENT,
+        J480_STATUS_FILTER_INFREQUENT,
+    )
+
+    modes = []
+    for raw in (J480_STATUS_FILTER_AWAY, J480_STATUS_FILTER_INFREQUENT, J480_STATUS_FILTER_FREQUENT):
+        p.parse_frame(raw)  # copied exactly: CRC still valid
+        status = p.parse_status(raw)
+        assert status.heat_mode == p.HEAT_MODE_ECO  # unaffected
+        modes.append(status.filter2_mode)
+    assert modes == [p.FILTER2_AWAY, p.FILTER2_INFREQUENT, p.FILTER2_FREQUENT]
+
+
+def test_build_set_filter2_mode():
+    frame = p.parse_frame(p.build_set_filter2_mode(p.FILTER2_INFREQUENT))
+    assert (frame.dst, frame.pf, frame.mtype, frame.payload) == (0x0A, 0xBF, 0x1C, b"\x01\x00\x00")
+    with pytest.raises(ValueError):
+        p.build_set_filter2_mode(3)

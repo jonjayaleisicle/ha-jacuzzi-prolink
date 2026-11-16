@@ -154,6 +154,14 @@
           "eco": "Eco",
           "day": "Day"
         }
+      },
+      "secondary_filter": {
+        "name": "Secondary filter",
+        "state": {
+          "frequent": "Frequent",
+          "infrequent": "Infrequent",
+          "away": "Away"
+        }
       }
     }
   },

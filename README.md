@@ -18,6 +18,7 @@ the spa from Home Assistant.
 | --- | --- |
 | Thermostat | Shows the water temperature, whether the spa is heating, and sets the target (18.5–40 °C in 0.5 ° steps, or 65–104 °F) |
 | Heat mode | **Auto** (heat at all times), **Eco** (heat only 5pm–7am) or **Day** (heat only 7am–5pm) |
+| Secondary filter | How often the secondary filtration runs: **Frequent**, **Infrequent** or **Away** |
 | Jets 1, Jets 2 | Turn each set of jets on and off |
 | Lights | On, off and brightness in the panel's five steps (20–100 %) |
 | Sync spa clock | Sets the spa's date and clock to Home Assistant's local time |
@@ -92,7 +93,7 @@ straight away.
 
 ### How commands work
 
-- **Target temperature, heat mode, lights and clock** are set directly to the value you
+- **Target temperature, heat mode, secondary filter, lights and clock** are set directly to the value you
   ask for.
 - **Jets** work by simulating a press of the panel's jets button, which
   toggles them. The integration only presses when the jets are not already in
@@ -146,8 +147,9 @@ Assistant first, in case the module accepts only one connection at a time.
 | Light colours and cycle speeds | Not yet decoded |
 | Heat mode reading (Auto / Eco / Day) | Confirmed |
 | Heating indicator | Confirmed |
-| Changing the heat mode | Not yet tested |
-| Filter frequency, filter cycle times | Not yet decoded |
+| Secondary filter reading (Frequent / Infrequent / Away) | Confirmed |
+| Changing the heat mode or secondary filter | Not yet tested |
+| Primary filter cycle times | Not yet decoded |
 | Filter cycle, ClearRay | Not confirmed |
 
 Reports from other models are welcome. Open an issue with your model and a

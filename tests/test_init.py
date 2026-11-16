@@ -301,3 +301,30 @@ async def test_heat_mode_select_and_heating(hass: HomeAssistant) -> None:
     assert hass.states.get("climate.spa").attributes["hvac_action"] == "heating"
 
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_secondary_filter_select(hass: HomeAssistant) -> None:
+    from custom_components.jacuzzi_prolink.protocol import (
+        FILTER2_INFREQUENT,
+        build_set_filter2_mode,
+    )
+
+    from .frames import J480_STATUS_FILTER_AWAY, J480_STATUS_FILTER_INFREQUENT
+
+    entry, sent = await _setup(hass)
+    await _feed(hass, entry, J480_STATUS_FILTER_AWAY)
+    assert hass.states.get("select.spa_secondary_filter").state == "away"
+
+    await hass.services.async_call(
+        "select", "select_option",
+        {"entity_id": "select.spa_secondary_filter", "option": "infrequent"},
+        blocking=True,
+    )
+    frame, confirmed = sent[-1]
+    assert frame == build_set_filter2_mode(FILTER2_INFREQUENT)
+    assert not confirmed()
+    await _feed(hass, entry, J480_STATUS_FILTER_INFREQUENT)
+    assert confirmed()
+    assert hass.states.get("select.spa_secondary_filter").state == "infrequent"
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
