@@ -148,7 +148,7 @@ Assistant first, in case the module accepts only one connection at a time.
 | Heat mode reading (Auto / Eco / Day) | Confirmed |
 | Heating indicator | Confirmed |
 | Secondary filter reading (Frequent / Infrequent / Away) | Confirmed |
-| Changing the heat mode or secondary filter | Not yet tested |
+| Changing the heat mode and secondary filter | Confirmed |
 | Primary filter cycle times | Not yet decoded |
 | Filter cycle, ClearRay | Not confirmed |
 
