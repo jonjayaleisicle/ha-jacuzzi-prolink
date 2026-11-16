@@ -2,21 +2,17 @@
 
 from __future__ import annotations
 
-import time
+import asyncio
+from collections.abc import Callable
 
-from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DEFAULT_NAME, DOMAIN
 from .coordinator import JacuzziCoordinator
+from .client import CommandNotConfirmed
 from .protocol import build_button_press
-
-# After a simulated button press, ignore further requests for this long
-# unless the spa confirms the change sooner. Presses toggle, so a second
-# press before the spa reports the first would undo it.
-PRESS_SETTLE_SECONDS = 5.0
 
 
 class JacuzziEntity(CoordinatorEntity[JacuzziCoordinator]):
@@ -40,6 +36,19 @@ class JacuzziEntity(CoordinatorEntity[JacuzziCoordinator]):
         client = self.coordinator.client
         return client.connected and client.status is not None
 
+    async def _async_command(self, frame: bytes, confirmed: Callable[[], bool]) -> None:
+        """Send a command, retrying once, and fail loudly if the spa ignores it."""
+        try:
+            await self.coordinator.client.send_and_confirm(frame, confirmed)
+        except CommandNotConfirmed as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="not_confirmed"
+            ) from err
+        except (OSError, ConnectionError) as err:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="not_connected"
+            ) from err
+
 
 class JacuzziToggleEntity(JacuzziEntity):
     """Something the panel turns on and off with one button that toggles."""
@@ -48,8 +57,7 @@ class JacuzziToggleEntity(JacuzziEntity):
 
     def __init__(self, coordinator: JacuzziCoordinator, key: str) -> None:
         super().__init__(coordinator, key)
-        self._settle_until = 0.0
-        self._pressed_from: bool | None = None
+        self._lock = asyncio.Lock()
 
     @property
     def _current(self) -> bool | None:
@@ -59,27 +67,17 @@ class JacuzziToggleEntity(JacuzziEntity):
     def is_on(self) -> bool | None:
         return self._current
 
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        if self._pressed_from is not None and self._current != self._pressed_from:
-            self._pressed_from = None  # the spa confirmed the press
-            self._settle_until = 0.0
-        super()._handle_coordinator_update()
-
     async def _async_set(self, want: bool) -> None:
-        current = self._current
-        if current is None or current == want:
-            return
-        if time.monotonic() < self._settle_until:
-            return  # still waiting for the spa to report the last press
-        try:
-            await self.coordinator.client.send(build_button_press(self._button_code))
-        except (OSError, ConnectionError) as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN, translation_key="not_connected"
-            ) from err
-        self._pressed_from = current
-        self._settle_until = time.monotonic() + PRESS_SETTLE_SECONDS
+        # Requests queue up; each one re-reads the state after the previous
+        # finished, so a double click cannot press twice and undo itself.
+        async with self._lock:
+            before = self._current
+            if before is None or before == want:
+                return
+            await self._async_command(
+                build_button_press(self._button_code),
+                lambda: self._current is not None and self._current != before,
+            )
 
     async def async_turn_on(self, **kwargs) -> None:
         await self._async_set(True)

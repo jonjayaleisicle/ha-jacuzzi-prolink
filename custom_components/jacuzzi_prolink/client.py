@@ -32,7 +32,11 @@ DEFAULT_PORT = 4257
 CONNECT_TIMEOUT = 10.0
 # The spa broadcasts several frames a second while awake. If the socket stays
 # silent this long, assume the module dropped us and reconnect.
-IDLE_TIMEOUT = 60.0
+IDLE_TIMEOUT = 15.0
+# The spa reports a change about a second after a command. Allow a margin.
+CONFIRM_TIMEOUT = 4.0
+# How long a command waits for a (re)connection and a fresh status report
+RECONNECT_WAIT = 20.0
 RECONNECT_MIN = 5.0
 RECONNECT_MAX = 120.0
 RECENT_FRAMES = 30
@@ -56,6 +60,10 @@ async def async_probe(host: str, port: int, timeout: float = CONNECT_TIMEOUT) ->
         pass
 
 
+class CommandNotConfirmed(Exception):
+    """The spa did not report the requested change, even after a retry."""
+
+
 class ProLinkClient:
     """Keeps a connection to the module open and decodes what it hears."""
 
@@ -67,12 +75,16 @@ class ProLinkClient:
         *,
         idle_timeout: float = IDLE_TIMEOUT,
         reconnect_min: float = RECONNECT_MIN,
+        confirm_timeout: float = CONFIRM_TIMEOUT,
+        reconnect_wait: float = RECONNECT_WAIT,
     ) -> None:
         self.host = host
         self.port = port
         self.on_update = on_update
         self._idle_timeout = idle_timeout
         self._reconnect_min = reconnect_min
+        self._confirm_timeout = confirm_timeout
+        self._reconnect_wait = reconnect_wait
 
         self.status: SpaStatus | None = None
         self.lights: LightStatus | None = None
@@ -89,6 +101,10 @@ class ProLinkClient:
         self._reader = FrameReader()
         self._last_raw: dict[int, bytes] = {}
         self._writer: asyncio.StreamWriter | None = None
+        self._frame_event = asyncio.Event()  # set whenever a frame arrives
+        self._reconnect_now = asyncio.Event()
+        self._status_seq = 0  # counts every status frame, changed or not
+        self._send_lock = asyncio.Lock()
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -115,7 +131,11 @@ class ProLinkClient:
                     await self._close_writer()
             self._set_connected(False)
             backoff = self._reconnect_min if got_data else min(backoff * 2, RECONNECT_MAX)
-            await asyncio.sleep(backoff)
+            try:  # a command that needs the connection back cuts the wait short
+                await asyncio.wait_for(self._reconnect_now.wait(), backoff)
+            except TimeoutError:
+                pass
+            self._reconnect_now.clear()
 
     async def send(self, frame: bytes) -> None:
         """Write a command frame to the module.
@@ -129,7 +149,74 @@ class ProLinkClient:
         _LOGGER.debug("Sending %s", frame.hex())
         writer.write(frame)
         await writer.drain()
-        self.sent_frames.append(f"{_stamp()} {frame.hex()}")
+        self._log_command(f"sent {frame.hex()}")
+
+    async def send_and_confirm(
+        self, frame: bytes, confirmed: Callable[[], bool], *, retries: int = 1
+    ) -> None:
+        """Send a command and wait for the spa's status to show it took effect.
+
+        ``confirmed`` checks the decoded state. If it does not turn true in
+        time, the connection is assumed stale (the module can drop us without
+        closing the socket): reconnect, wait for a fresh status report, and
+        resend only if the change still has not happened. That last check
+        matters for toggles, where resending a press that did land would undo
+        it. Raises ConnectionError if the spa cannot be reached, and
+        CommandNotConfirmed if it never reports the change.
+        """
+        async with self._send_lock:
+            for attempt in range(retries + 1):
+                if attempt:
+                    self._log_command("no confirmation; reconnecting")
+                    await self._reconnect()
+                    if not await self._wait_for_fresh_status():
+                        raise ConnectionError("ProLink module did not reconnect")
+                    if confirmed():
+                        self._log_command("confirmed after reconnecting")
+                        return
+                elif not self.connected and not await self._wait_for_fresh_status():
+                    raise ConnectionError("not connected to the ProLink module")
+                try:
+                    await self.send(frame)
+                except (OSError, ConnectionError) as err:
+                    self._log_command(f"send failed: {err}")
+                    if attempt == retries:
+                        raise
+                    continue
+                if await self._wait_for(confirmed, self._confirm_timeout):
+                    self._log_command("confirmed")
+                    return
+            self._log_command("not confirmed; giving up")
+            raise CommandNotConfirmed(frame.hex())
+
+    async def _reconnect(self) -> None:
+        await self._close_writer()
+        self._set_connected(False)
+        self._reconnect_now.set()
+
+    async def _wait_for_fresh_status(self) -> bool:
+        """Wait until connected and a status frame newer than now arrives."""
+        seq = self._status_seq
+        return await self._wait_for(
+            lambda: self.connected and self._status_seq > seq, self._reconnect_wait
+        )
+
+    async def _wait_for(self, condition: Callable[[], bool], timeout: float) -> bool:
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + timeout
+        while not condition():
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                return False
+            self._frame_event.clear()
+            try:
+                await asyncio.wait_for(self._frame_event.wait(), remaining)
+            except TimeoutError:
+                return condition()
+        return True
+
+    def _log_command(self, message: str) -> None:
+        self.sent_frames.append(f"{_stamp()} {message}")
 
     async def close(self) -> None:
         await self._close_writer()
@@ -187,8 +274,10 @@ class ProLinkClient:
 
         if mtype == MSG_STATUS_UPDATE:
             self.last_status_at = datetime.now(UTC)
+            self._status_seq += 1
         if changed:
             self._notify()
+        self._frame_event.set()
 
     def _set_connected(self, connected: bool) -> None:
         if self.connected != connected:

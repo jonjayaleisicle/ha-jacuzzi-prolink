@@ -153,6 +153,9 @@
     },
     "temperature_out_of_range": {
       "message": "The spa accepts target temperatures from {min} to {max} {unit}."
+    },
+    "not_confirmed": {
+      "message": "The spa did not respond to the command, even after reconnecting and trying again. Check the spa and try again."
     }
   }
 }

@@ -1,6 +1,6 @@
 """Config flow and entity setup."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -19,7 +19,7 @@ from custom_components.jacuzzi_prolink.protocol import (
     parse_frame,
 )
 
-from .frames import J480_STATUS, STATUS
+from .frames import J480_STATUS, J480_STATUS_JETS_OFF as J480_STATUS_JETS_OFF_FOR_LIGHTS, STATUS
 
 PROBE = "custom_components.jacuzzi_prolink.{}.async_probe"
 
@@ -89,9 +89,12 @@ async def test_entities_follow_status(hass: HomeAssistant) -> None:
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_sync_clock_button(hass: HomeAssistant, freezer) -> None:
-    await hass.config.async_set_time_zone("Europe/London")
-    freezer.move_to("2026-11-15 21:42:30+00:00")
+async def _setup(hass: HomeAssistant) -> tuple[MockConfigEntry, list]:
+    """Set up the integration with a fake client that records commands.
+
+    Each recorded command is (frame, confirmed): the bytes the entity sent and
+    the check it would use to recognise the spa's response.
+    """
     entry = MockConfigEntry(
         domain=DOMAIN, data={CONF_HOST: "192.0.2.10", CONF_PORT: 4257}, title="Spa"
     )
@@ -104,58 +107,51 @@ async def test_sync_clock_button(hass: HomeAssistant, freezer) -> None:
     ):
         assert await hass.config_entries.async_setup(entry.entry_id)
         await hass.async_block_till_done()
+    sent: list = []
 
-    client = entry.runtime_data.client
-    assert hass.states.get("button.spa_sync_spa_clock").state == STATE_UNAVAILABLE
+    async def record(frame, confirmed, **kwargs):
+        sent.append((frame, confirmed))
 
-    writer = MagicMock()
-    writer.drain = AsyncMock()
-    writer.wait_closed = AsyncMock()
-    client._writer = writer
-    client.handle_frame(parse_frame(STATUS))
+    entry.runtime_data.client.send_and_confirm = record
+    return entry, sent
+
+
+async def _feed(hass: HomeAssistant, entry, *frames: bytes) -> None:
+    for raw in frames:
+        entry.runtime_data.client.handle_frame(parse_frame(raw))
     await hass.async_block_till_done()
 
-    await hass.services.async_call(
-        "button", "press", {"entity_id": "button.spa_sync_spa_clock"}, blocking=True
-    )
-    writer.write.assert_called_once_with(build_set_datetime(2026, 11, 15, 21, 42))
 
-    # Lost connection: the press fails with a clear error instead of hanging
-    client._writer = None
-    with pytest.raises(HomeAssistantError):
-        await client_press(hass)
+async def _call(hass: HomeAssistant, domain: str, service: str, entity_id: str, **data):
+    await hass.services.async_call(
+        domain, service, {"entity_id": entity_id, **data}, blocking=True
+    )
+
+
+async def test_sync_clock_button(hass: HomeAssistant, freezer) -> None:
+    from .frames import J480_STATUS_AFTER_CLOCK_SYNC
+
+    await hass.config.async_set_time_zone("Europe/London")
+    freezer.move_to("2026-11-15 21:52:10+00:00")
+    entry, sent = await _setup(hass)
+    assert hass.states.get("button.spa_sync_spa_clock").state == STATE_UNAVAILABLE
+
+    await _feed(hass, entry, J480_STATUS)  # clock unset: 2 Jan 2014
+    await _call(hass, "button", "press", "button.spa_sync_spa_clock")
+    frame, confirmed = sent[-1]
+    assert frame == build_set_datetime(2026, 11, 15, 21, 52)
+    assert not confirmed()
+    await _feed(hass, entry, J480_STATUS_AFTER_CLOCK_SYNC)  # real response
+    assert confirmed()
 
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def client_press(hass: HomeAssistant) -> None:
-    entity = hass.data["entity_components"]["button"].get_entity(
-        "button.spa_sync_spa_clock"
-    )
-    await entity.async_press()
-
-
 async def test_climate_sets_temperature(hass: HomeAssistant) -> None:
-    entry = MockConfigEntry(
-        domain=DOMAIN, data={CONF_HOST: "192.0.2.10", CONF_PORT: 4257}, title="Spa"
-    )
-    entry.add_to_hass(hass)
-    with (
-        patch("custom_components.jacuzzi_prolink.async_probe"),
-        patch(
-            "custom_components.jacuzzi_prolink.client.ProLinkClient.run", _never_ending
-        ),
-    ):
-        assert await hass.config_entries.async_setup(entry.entry_id)
-        await hass.async_block_till_done()
+    from .frames import J480_STATUS_SET_20_5
 
-    client = entry.runtime_data.client
-    writer = MagicMock()
-    writer.drain = AsyncMock()
-    writer.wait_closed = AsyncMock()
-    client._writer = writer
-    client.handle_frame(parse_frame(J480_STATUS))
-    await hass.async_block_till_done()
+    entry, sent = await _setup(hass)
+    await _feed(hass, entry, J480_STATUS)
 
     state = hass.states.get("climate.spa")
     assert state.state == "heat"
@@ -164,111 +160,107 @@ async def test_climate_sets_temperature(hass: HomeAssistant) -> None:
     assert state.attributes["min_temp"] == 18.5
     assert state.attributes["max_temp"] == 40.0
 
-    await hass.services.async_call(
-        "climate", "set_temperature",
-        {"entity_id": "climate.spa", "temperature": 37.5}, blocking=True,
-    )
-    writer.write.assert_called_once_with(build_set_temperature(37.5, TSCALE_C))
+    await _call(hass, "climate", "set_temperature", "climate.spa", temperature=20.5)
+    frame, confirmed = sent[-1]
+    assert frame == build_set_temperature(20.5, TSCALE_C)
+    assert not confirmed()
+    await _feed(hass, entry, J480_STATUS_SET_20_5)  # real response
+    assert confirmed()
 
-    writer.write.reset_mock()
     with pytest.raises(ServiceValidationError):
-        await hass.services.async_call(
-            "climate", "set_temperature",
-            {"entity_id": "climate.spa", "temperature": 18.0}, blocking=True,
-        )
-    writer.write.assert_not_called()
+        await _call(hass, "climate", "set_temperature", "climate.spa", temperature=18.0)
+    assert len(sent) == 1
 
     assert await hass.config_entries.async_unload(entry.entry_id)
 
 
-async def test_jets_and_lights_toggle(hass: HomeAssistant, freezer) -> None:
+async def test_jets_toggle(hass: HomeAssistant) -> None:
     from custom_components.jacuzzi_prolink.protocol import (
         BUTTON_JETS_1,
         build_button_press,
-        build_set_light_brightness,
     )
 
-    from .frames import J480_LIGHTS_OFF, J480_LIGHTS_ON, J480_STATUS_JETS_1_ON, J480_STATUS_JETS_OFF
+    from .frames import J480_STATUS_JETS_1_ON, J480_STATUS_JETS_OFF
 
-    entry = MockConfigEntry(
-        domain=DOMAIN, data={CONF_HOST: "192.0.2.10", CONF_PORT: 4257}, title="Spa"
-    )
-    entry.add_to_hass(hass)
-    with (
-        patch("custom_components.jacuzzi_prolink.async_probe"),
-        patch(
-            "custom_components.jacuzzi_prolink.client.ProLinkClient.run", _never_ending
-        ),
-    ):
-        assert await hass.config_entries.async_setup(entry.entry_id)
-        await hass.async_block_till_done()
-
-    client = entry.runtime_data.client
-    writer = MagicMock()
-    writer.drain = AsyncMock()
-    writer.wait_closed = AsyncMock()
-    client._writer = writer
-    client.handle_frame(parse_frame(J480_STATUS_JETS_OFF))
-    client.handle_frame(parse_frame(J480_LIGHTS_OFF))
-    await hass.async_block_till_done()
-
+    entry, sent = await _setup(hass)
+    await _feed(hass, entry, J480_STATUS_JETS_OFF)
     assert hass.states.get("switch.spa_jets_1").state == "off"
     assert hass.states.get("switch.spa_jets_2").state == "off"
-    assert hass.states.get("light.spa_lights").state == "off"
-
-    async def call(domain, service, entity_id):
-        await hass.services.async_call(
-            domain, service, {"entity_id": entity_id}, blocking=True
-        )
 
     # Turning off something already off sends nothing
-    await call("switch", "turn_off", "switch.spa_jets_1")
-    writer.write.assert_not_called()
+    await _call(hass, "switch", "turn_off", "switch.spa_jets_1")
+    assert sent == []
 
-    # Turning on presses the jets 1 button once
-    await call("switch", "turn_on", "switch.spa_jets_1")
-    writer.write.assert_called_once_with(build_button_press(BUTTON_JETS_1))
-
-    # A second request before the spa reports back must not press again
-    await call("switch", "turn_on", "switch.spa_jets_1")
-    await call("switch", "turn_off", "switch.spa_jets_1")
-    assert writer.write.call_count == 1
-
-    # The spa confirms; now turning off presses again
-    client.handle_frame(parse_frame(J480_STATUS_JETS_1_ON))
-    await hass.async_block_till_done()
+    await _call(hass, "switch", "turn_on", "switch.spa_jets_1")
+    frame, confirmed = sent[-1]
+    assert frame == build_button_press(BUTTON_JETS_1)
+    assert not confirmed()
+    await _feed(hass, entry, J480_STATUS_JETS_1_ON)
+    assert confirmed()
     assert hass.states.get("switch.spa_jets_1").state == "on"
-    await call("switch", "turn_off", "switch.spa_jets_1")
-    assert writer.write.call_count == 2
 
-    # If the spa never confirms, presses are allowed again after the settle time
-    freezer.tick(6)
-    await call("switch", "turn_off", "switch.spa_jets_1")
-    assert writer.write.call_count == 3
+    # Already on: a repeat request must not press again (that would turn it off)
+    await _call(hass, "switch", "turn_on", "switch.spa_jets_1")
+    assert len(sent) == 1
 
-    # Every command sent is kept, timestamped, for the diagnostics download
-    assert client.sent_frames[-1].endswith(build_button_press(BUTTON_JETS_1).hex())
-    assert len(client.sent_frames) == 3
+    assert await hass.config_entries.async_unload(entry.entry_id)
 
-    writer.write.reset_mock()
-    await call("light", "turn_on", "light.spa_lights")
-    writer.write.assert_called_once_with(build_set_light_brightness(100))
-    client.handle_frame(parse_frame(J480_LIGHTS_ON))
-    await hass.async_block_till_done()
+
+async def test_lights_brightness(hass: HomeAssistant) -> None:
+    from custom_components.jacuzzi_prolink.protocol import build_set_light_brightness
+
+    from .frames import J480_LIGHTS_FROM_HA_20, J480_LIGHTS_OFF, J480_LIGHTS_ON
+
+    entry, sent = await _setup(hass)
+    await _feed(hass, entry, J480_STATUS_JETS_OFF_FOR_LIGHTS, J480_LIGHTS_OFF)
+    assert hass.states.get("light.spa_lights").state == "off"
+
+    await _call(hass, "light", "turn_on", "light.spa_lights")
+    frame, confirmed = sent[-1]
+    assert frame == build_set_light_brightness(100)
+    await _feed(hass, entry, J480_LIGHTS_ON)  # 100 % from the panel capture
+    assert confirmed()
     state = hass.states.get("light.spa_lights")
     assert state.state == "on"
     assert state.attributes["brightness"] == 255
 
     # Brightness snaps to the panel's 20 % steps
-    writer.write.reset_mock()
-    await hass.services.async_call(
-        "light", "turn_on",
-        {"entity_id": "light.spa_lights", "brightness_pct": 47}, blocking=True,
-    )
-    writer.write.assert_called_once_with(build_set_light_brightness(40))
+    await _call(hass, "light", "turn_on", "light.spa_lights", brightness_pct=23)
+    frame, confirmed = sent[-1]
+    assert frame == build_set_light_brightness(20)
+    assert not confirmed()
+    await _feed(hass, entry, J480_LIGHTS_FROM_HA_20)
+    assert confirmed()
 
-    writer.write.reset_mock()
-    await call("light", "turn_off", "light.spa_lights")
-    writer.write.assert_called_once_with(build_set_light_brightness(0))
+    await _call(hass, "light", "turn_off", "light.spa_lights")
+    frame, confirmed = sent[-1]
+    assert frame == build_set_light_brightness(0)
+    assert not confirmed()
+    await _feed(hass, entry, J480_LIGHTS_OFF)
+    assert confirmed()
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_command_errors_are_reported(hass: HomeAssistant) -> None:
+    from custom_components.jacuzzi_prolink.client import CommandNotConfirmed
+
+    entry, sent = await _setup(hass)
+    await _feed(hass, entry, J480_STATUS)
+    client = entry.runtime_data.client
+
+    async def ignored(frame, confirmed, **kwargs):
+        raise CommandNotConfirmed(frame.hex())
+
+    client.send_and_confirm = ignored
+    with pytest.raises(HomeAssistantError, match="did not respond"):
+        await _call(hass, "climate", "set_temperature", "climate.spa", temperature=20)
+
+    async def unreachable(frame, confirmed, **kwargs):
+        raise ConnectionError
+
+    client.send_and_confirm = unreachable
+    with pytest.raises(HomeAssistantError, match="not connected"):
+        await _call(hass, "button", "press", "button.spa_sync_spa_clock")
 
     assert await hass.config_entries.async_unload(entry.entry_id)

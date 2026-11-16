@@ -6,11 +6,9 @@ from typing import Any
 
 from homeassistant.components.light import ATTR_BRIGHTNESS, ColorMode, LightEntity
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import JacuzziConfigEntry
-from .const import DOMAIN
 from .entity import JacuzziEntity
 from .protocol import LIGHT_BRIGHTNESS_STEP, build_set_light_brightness
 
@@ -70,9 +68,12 @@ class JacuzziLight(JacuzziEntity, LightEntity):
         await self._send(0)
 
     async def _send(self, percent: int) -> None:
-        try:
-            await self.coordinator.client.send(build_set_light_brightness(percent))
-        except (OSError, ConnectionError) as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN, translation_key="not_connected"
-            ) from err
+        def confirmed() -> bool:
+            lights = self.coordinator.client.lights
+            if lights is None:
+                return False
+            if percent == 0:
+                return not lights.on
+            return lights.on and lights.brightness == percent
+
+        await self._async_command(build_set_light_brightness(percent), confirmed)

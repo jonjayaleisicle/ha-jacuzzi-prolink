@@ -52,6 +52,13 @@ at 03:00, and when the **Connected** sensor turns on.
 
 ## Troubleshooting
 
+- **How commands are checked.** After each command the integration waits a few
+  seconds for the spa to report the change. If it does not, the integration
+  reconnects to the module (which can drop a connection without saying so),
+  reads the spa's latest state, and sends the command once more only if the
+  change still has not happened. If the spa still does not respond, you get
+  an error, and the diagnostics' `sent_frames` list shows each step.
+
 - **Entities unavailable / "Connected" off.** The ProLink module is known to
   doze off when the spa has been idle for a while. The integration reconnects
   by itself; pressing a button on the topside panel usually wakes it.

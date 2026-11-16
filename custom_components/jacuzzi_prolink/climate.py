@@ -12,7 +12,7 @@ from homeassistant.components.climate import (
 )
 from homeassistant.const import PRECISION_HALVES, PRECISION_WHOLE, UnitOfTemperature
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import JacuzziConfigEntry
@@ -102,10 +102,10 @@ class JacuzziClimate(JacuzziEntity, ClimateEntity):
                     "unit": self.temperature_unit,
                 },
             ) from err
-        try:
-            await self.coordinator.client.send(frame)
-        except (OSError, ConnectionError) as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN, translation_key="not_connected"
-            ) from err
-        # The new set point appears when the spa's next status frame confirms it
+        wanted = round(temp * 2) / 2 if self._celsius else round(temp)
+
+        def confirmed() -> bool:
+            current = self.coordinator.client.status
+            return current is not None and current.set_temp == wanted
+
+        await self._async_command(frame, confirmed)

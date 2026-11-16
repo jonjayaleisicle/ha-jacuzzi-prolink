@@ -5,12 +5,10 @@ from __future__ import annotations
 from homeassistant.components.button import ButtonEntity
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.util import dt as dt_util
 
 from . import JacuzziConfigEntry
-from .const import DOMAIN
 from .entity import JacuzziEntity
 from .protocol import build_set_datetime
 
@@ -35,9 +33,13 @@ class JacuzziSyncClockButton(JacuzziEntity, ButtonEntity):
     async def async_press(self) -> None:
         now = dt_util.now()
         frame = build_set_datetime(now.year, now.month, now.day, now.hour, now.minute)
-        try:
-            await self.coordinator.client.send(frame)
-        except (OSError, ConnectionError) as err:
-            raise HomeAssistantError(
-                translation_domain=DOMAIN, translation_key="not_connected"
-            ) from err
+        wanted = (now.year, now.month, now.day, now.hour * 60 + now.minute)
+
+        def confirmed() -> bool:
+            s = self.coordinator.client.status
+            if s is None or (s.year, s.month, s.day) != wanted[:3]:
+                return False
+            # The spa's clock may tick over to the next minute before it reports
+            return 0 <= s.hour * 60 + s.minute - wanted[3] <= 1
+
+        await self._async_command(frame, confirmed)
