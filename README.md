@@ -2,37 +2,52 @@
 
 A Home Assistant integration for Jacuzzi spas fitted with the **ProLink WiFi
 module**. It talks to the module directly over your local network, with no
-cloud account, MQTT broker or extra hardware, and shows the spa's status in
-Home Assistant.
+cloud account, MQTT broker or extra hardware, so you can monitor and control
+the spa from Home Assistant.
 
-> **Status: early.** The integration mostly *listens* to the spa. It sends
-> commands only when you use one of its controls: target temperature, jets,
-> lights, or **Sync spa clock**. Jets work by simulating a press of the
-> topside panel's button. Developed for a J-480, and should work on other
-> J-300/J-400 series spas with ProLink.
+> **Status: early but working.** Developed and tested on a **Jacuzzi J-480**
+> (UK, Celsius). It should work on other J-300/J-400 series spas with ProLink,
+> but some readings may sit differently on other models. See
+> [Tested on](#tested-on).
 
 ## What you get
 
+### Controls
+
+| Entity | What it does |
+| --- | --- |
+| Thermostat | Shows the water temperature and sets the target (18.5–40 °C in 0.5 ° steps, or 65–104 °F) |
+| Jets 1, Jets 2 | Turn each set of jets on and off |
+| Lights | On, off and brightness in the panel's five steps (20–100 %) |
+| Sync spa clock | Sets the spa's date and clock to Home Assistant's local time |
+
+### Sensors
+
 | Entity | Notes |
 | --- | --- |
-| Thermostat | Current water temperature and target temperature, which you can set (18.5–40 °C or 65–104 °F, in the spa's own unit) |
-| Jets 1, Jets 2 (switches) | Turn the jets on and off |
-| Lights (light) | On/off and brightness in the panel's 20 % steps (experimental); colour mode and RGB in the Light brightness sensor's attributes |
-| Water temperature | °C or °F, following the spa's own setting |
-| Target temperature | The set point |
-| Circulation pump, Pump 1–3 | Off / Low / High |
-| Filter cycle, ClearRay | Running or not (bit positions not fully confirmed) |
+| Water temperature, Target temperature | °C or °F, following the spa's own setting |
+| Circulation pump, Pump 1, Pump 2 | Off / Low / High (single-speed jets show High when on) |
+| Filter cycle, ClearRay, Water flow | Running or not |
 | Panel lock | Whether the topside panel is locked |
 | Error, Error code | Spa error reporting (0 = no error) |
-| Light brightness | Light colour mode and RGB as attributes |
+| Light brightness | 0–100 %, with colour mode and RGB as attributes |
 | Connected, Last update | Whether the module is sending data |
-| Sync spa clock (button) | Sets the spa's date and clock to Home Assistant's local time |
-| Diagnostics | Heat mode state, spa state, spa clock, WiFi state, and (disabled by default, decoding unconfirmed) plumbing temperature and ClearRay/water/filter timers |
+| Diagnostics | Heat mode state, spa state, spa clock, WiFi state |
 
-Updates are pushed by the spa (several per second while awake), so entities
-change as soon as the spa reports something new.
+Hidden by default, because their meaning is not confirmed: Pump 3, plumbing
+temperature, and the ClearRay, water and filter timers. Enable them under
+**Settings → Entities** if you want to look at them.
 
-## Install with HACS
+The spa pushes its status several times a second, so entities update as soon
+as something changes.
+
+## Requirements
+
+- Home Assistant 2025.1 or later (2026.3 or later to show the integration's icon)
+- A Jacuzzi spa with a ProLink WiFi module on the same network as Home Assistant
+- [HACS](https://hacs.xyz/)
+
+## Install
 
 1. In HACS, open the menu (⋮) → **Custom repositories**.
 2. Add `https://github.com/jonjayaleisicle/ha-jacuzzi-prolink` with type
@@ -44,29 +59,58 @@ change as soon as the spa reports something new.
 Give the module a fixed IP address (a DHCP reservation on your router) so it
 keeps the same address.
 
+## Updating
+
+When a new release is published, HACS offers it as an update like any other
+integration: install it and restart Home Assistant.
+
+HACS checks for updates periodically. To check straight away, open
+**Jacuzzi ProLink** in HACS and choose ⋮ → **Update information**. If HACS
+shows a version like `ef2626c` instead of a number like `0.6.0`, it installed
+from a commit rather than a release; choose ⋮ → **Redownload** and pick the
+latest release.
+
+After updating, refresh your browser (Ctrl+Shift+R, or Cmd+Shift+R on a Mac)
+if the icon or entity controls look out of date.
+
+## Tips
+
 ### Keeping the spa clock right
 
 The spa's clock drifts and resets after a power cut. To keep it in sync,
 create an automation that presses **Sync spa clock** once a day, for example
 at 03:00, and when the **Connected** sensor turns on.
 
+### How commands work
+
+- **Target temperature, lights and clock** are set directly to the value you
+  ask for.
+- **Jets** work by simulating a press of the panel's jets button, which
+  toggles them. The integration only presses when the jets are not already in
+  the state you asked for, so repeated clicks cannot switch them back.
+- After every command, the integration waits a few seconds for the spa to
+  report the change. If it does not, it assumes the connection has gone
+  stale (the module can drop it without warning), reconnects, reads the spa's
+  latest state, and sends the command once more only if the change still has
+  not happened. If the spa still does not respond, you get an error.
+
 ## Troubleshooting
 
-- **How commands are checked.** After each command the integration waits a few
-  seconds for the spa to report the change. If it does not, the integration
-  reconnects to the module (which can drop a connection without saying so),
-  reads the spa's latest state, and sends the command once more only if the
-  change still has not happened. If the spa still does not respond, you get
-  an error, and the diagnostics' `sent_frames` list shows each step.
-
-- **Entities unavailable / "Connected" off.** The ProLink module is known to
-  doze off when the spa has been idle for a while. The integration reconnects
-  by itself; pressing a button on the topside panel usually wakes it.
-- **Values look wrong.** The protocol was reverse-engineered on other Jacuzzi
-  models and some fields may sit differently on yours. Please open an issue
-  with the integration's diagnostics (device page → ⋮ → **Download
-  diagnostics**; your IP address is redacted) and what the topside panel
-  showed at the time. The diagnostics include the raw frames the spa sent.
+- **Entities unavailable / "Connected" off.** The ProLink module can doze off
+  when the spa has been idle. The integration reconnects by itself; pressing a
+  button on the topside panel usually wakes it.
+- **Connection keeps dropping.** The module may accept only one connection at
+  a time, so the Jacuzzi phone app could push Home Assistant off. Close the app
+  and the integration reconnects within a few seconds.
+- **"The spa did not respond to the command".** The command was sent twice
+  and the spa never reported the change. Check the spa is powered and not
+  locked at the panel, then try again.
+- **Values look wrong.** Some readings may sit differently on other models.
+  Please open an issue with the integration's diagnostics (device page → ⋮ →
+  **Download diagnostics**; your IP address is redacted) and what the topside
+  panel showed at the time. Diagnostics include the last 30 timestamped
+  messages of each type and a log of every command sent, so note the time of
+  anything you did.
 
 ### Capturing raw data without Home Assistant
 
@@ -76,9 +120,25 @@ at 03:00, and when the **Connected** sensor turns on.
 python3 tools/capture.py 192.168.1.50 --seconds 120 --out capture.txt
 ```
 
-While it runs, write down what the topside panel shows and press a few buttons,
-noting the time of each press. Disable the integration in Home Assistant first,
-in case the module accepts only one connection at a time.
+While it runs, write down what the topside panel shows and press a few
+buttons, noting the time of each press. Disable the integration in Home
+Assistant first, in case the module accepts only one connection at a time.
+
+## Tested on
+
+| Feature | J-480 (UK) |
+| --- | --- |
+| Water and target temperature | Confirmed |
+| Setting the target temperature | Confirmed |
+| Spa clock and date, Sync spa clock | Confirmed |
+| Jets 1 and 2, separately and together | Confirmed |
+| Lights on/off and brightness | Confirmed |
+| Circulation pump | Confirmed |
+| Light colours and cycle speeds | Not yet decoded |
+| Filter cycle, ClearRay, heating indicator | Not confirmed |
+
+Reports from other models are welcome. Open an issue with your model and a
+diagnostics download.
 
 ## Development
 
@@ -88,7 +148,23 @@ pytest
 ```
 
 The protocol code (`protocol.py`) and the network client (`client.py`) have no
-Home Assistant imports and can be tested on their own.
+Home Assistant imports and can be tested on their own. Tests use frames
+captured from real spas; see `tests/frames.py` for where each came from.
+
+### Publishing a release
+
+HACS shows release tags as version numbers and offers them as updates.
+
+1. Set `version` in `custom_components/jacuzzi_prolink/manifest.json` to the
+   new version, for example `0.6.0`, and push it to `main`.
+2. On GitHub, open **Releases → Draft a new release**.
+3. Under **Choose a tag**, type the same version with a `v` in front (for
+   example `v0.6.0`), choose **Create new tag**, and target `main`.
+4. Give it the same title, optionally choose **Generate release notes**, and
+   select **Publish release**.
+
+Keep the tag and the manifest version the same, so the version Home
+Assistant reports matches the release.
 
 ## Credits
 
