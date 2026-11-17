@@ -43,8 +43,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: JacuzziConfigEntry) -> b
     entry.async_create_background_task(
         hass, client.run(), f"jacuzzi_prolink {host}:{port}"
     )
-    entry.async_on_unload(client.close)
-    entry.async_on_unload(coordinator.cancel_timers)
+    async def _close() -> None:
+        coordinator.cancel_timers()
+        await client.close()
+
+    entry.async_on_unload(_close)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

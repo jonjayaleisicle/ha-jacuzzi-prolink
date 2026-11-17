@@ -32,12 +32,19 @@ class JacuzziCoordinator(DataUpdateCoordinator[ProLinkClient]):
         self.client = client
         self.data = client
         self._grace_timer: Callable[[], None] | None = None
+        self._closing = False
         client.on_update = self._handle_client_update
 
     @callback
     def _handle_client_update(self) -> None:
         self.async_set_updated_data(self.client)
-        if not self.client.connected and self._grace_timer is None:
+        client = self.client
+        if (
+            not client.connected
+            and client.available  # a real drop, still within its grace period
+            and self._grace_timer is None
+            and not self._closing
+        ):
             # Re-check availability once a short drop's grace period is over
             self._grace_timer = async_call_later(
                 self.hass, DROP_GRACE + 1, self._grace_expired
@@ -50,6 +57,7 @@ class JacuzziCoordinator(DataUpdateCoordinator[ProLinkClient]):
 
     @callback
     def cancel_timers(self) -> None:
+        self._closing = True
         if self._grace_timer is not None:
             self._grace_timer()
             self._grace_timer = None

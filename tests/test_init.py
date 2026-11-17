@@ -419,4 +419,20 @@ async def test_short_drops_do_not_make_the_spa_unavailable(hass: HomeAssistant, 
     await _feed(hass, entry, J480_STATUS)
     assert hass.states.get("climate.spa").state == "heat"
 
+    # A drop just before unloading must not leave a grace timer running
+    client._set_connected(False)
+    await hass.async_block_till_done()
+    coordinator = entry.runtime_data
+    assert coordinator._grace_timer is not None
     assert await hass.config_entries.async_unload(entry.entry_id)
+    assert coordinator._grace_timer is None
+
+
+async def test_unloading_leaves_no_timer(hass: HomeAssistant) -> None:
+    entry, _ = await _setup(hass)
+    await _feed(hass, entry, J480_STATUS)
+    coordinator = entry.runtime_data
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    # Closing the connection on unload is not a drop and starts no timer
+    assert coordinator._grace_timer is None
+    assert coordinator.client.drop_count == 0
