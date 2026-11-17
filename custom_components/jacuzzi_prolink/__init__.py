@@ -44,6 +44,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: JacuzziConfigEntry) -> b
         hass, client.run(), f"jacuzzi_prolink {host}:{port}"
     )
     entry.async_on_unload(client.close)
+    entry.async_on_unload(coordinator.cancel_timers)
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     return True

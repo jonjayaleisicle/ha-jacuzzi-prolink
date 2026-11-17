@@ -35,7 +35,7 @@ the spa from Home Assistant.
 | Error, Error code | Spa error reporting (0 = no error) |
 | Light brightness | 0–100 %, with colour mode and RGB as attributes |
 | Connected, Last update | Whether the module is sending data |
-| Filter start time, Filter duration, Filter cycles per day | The primary filter cycle settings, which the spa sends when asked (every 5 minutes); experimental |
+| Filter start time, Filter duration, Filter cycles per day | The primary filter cycle settings, which the spa sends when asked (on connecting, then hourly); experimental |
 | Connection drops | How many times the connection has been lost (kept across restarts), with the last drop and reconnect times |
 | Diagnostics | Spa state, spa clock, WiFi state |
 
@@ -111,6 +111,11 @@ straight away.
 - **Entities unavailable / "Connected" off.** The ProLink module can doze off
   when the spa has been idle. The integration reconnects by itself; pressing a
   button on the topside panel usually wakes it.
+- **Short drops are ridden through.** Some ProLink modules drop their
+  connection regularly (a J-480's does about every 15 minutes) and are back
+  within seconds. The integration reconnects at once and only marks the spa
+  unavailable if a drop lasts over a minute; the **Connection drops** sensor
+  still counts every drop.
 - **Connection keeps dropping.** Check the **Connection drops** sensor's
   history to see how often and when. The ProLink module sits inside the spa
   cabinet, which weakens its 2.4 GHz WiFi signal; an access point or mesh node

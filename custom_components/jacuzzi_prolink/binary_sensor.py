@@ -112,4 +112,6 @@ class JacuzziConnectivitySensor(JacuzziEntity, BinarySensorEntity):
 
     @property
     def is_on(self) -> bool:
-        return self.coordinator.client.connected
+        # Off only after a drop outlasts the grace period; brief drops are
+        # counted by the Connection drops sensor instead
+        return self.coordinator.client.available

@@ -37,14 +37,17 @@ DEFAULT_PORT = 4257
 CONNECT_TIMEOUT = 10.0
 # The spa broadcasts several frames a second while awake. If the socket stays
 # silent this long, assume the module dropped us and reconnect.
-IDLE_TIMEOUT = 15.0
+IDLE_TIMEOUT = 5.0
 # The spa reports a change about a second after a command. Allow a margin.
 CONFIRM_TIMEOUT = 4.0
 # How long a command waits for a (re)connection and a fresh status report
 RECONNECT_WAIT = 20.0
 # The spa only sends its filter cycle settings when asked
-FILTER_POLL_INTERVAL = 300.0
-RECONNECT_MIN = 5.0
+FILTER_POLL_INTERVAL = 3600.0
+RECONNECT_MIN = 1.0
+# Short drops (the J-480's module drops about every 15 minutes and is back
+# within seconds) do not make the spa unavailable unless they last this long
+DROP_GRACE = 60.0
 RECONNECT_MAX = 120.0
 RECENT_FRAMES = 30
 SENT_FRAMES = 30
@@ -318,6 +321,15 @@ class ProLinkClient:
         if changed:
             self._notify()
         self._frame_event.set()
+
+    @property
+    def available(self) -> bool:
+        """Connected, or dropped less than DROP_GRACE seconds ago."""
+        if self.connected:
+            return True
+        if self.last_drop_at is None:
+            return False
+        return (datetime.now(UTC) - self.last_drop_at).total_seconds() < DROP_GRACE
 
     def _set_connected(self, connected: bool) -> None:
         if self.connected != connected:

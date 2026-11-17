@@ -34,7 +34,8 @@ class JacuzziEntity(CoordinatorEntity[JacuzziCoordinator]):
     @property
     def available(self) -> bool:
         client = self.coordinator.client
-        return client.connected and client.status is not None
+        # Rides through the module's short, regular drops (see DROP_GRACE)
+        return client.available and client.status is not None
 
     async def _async_command(self, frame: bytes, confirmed: Callable[[], bool]) -> None:
         """Send a command, retrying once, and fail loudly if the spa ignores it."""

@@ -381,3 +381,42 @@ async def test_filter_cycle_sensors(hass: HomeAssistant) -> None:
     assert hass.states.get("sensor.spa_filter_cycles_per_day").state == "4"
 
     assert await hass.config_entries.async_unload(entry.entry_id)
+
+
+async def test_short_drops_do_not_make_the_spa_unavailable(hass: HomeAssistant, freezer) -> None:
+    from datetime import timedelta
+
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+
+    entry, _ = await _setup(hass)
+    client = entry.runtime_data.client
+    await _feed(hass, entry, J480_STATUS)
+    assert hass.states.get("climate.spa").state == "heat"
+
+    # The module drops the connection, as the J-480's does every ~15 minutes
+    client._set_connected(False)
+    await hass.async_block_till_done()
+    assert hass.states.get("climate.spa").state == "heat"  # still available
+    assert hass.states.get("binary_sensor.spa_connected").state == "on"
+    assert hass.states.get("sensor.spa_connection_drops").state == "1"  # but counted
+
+    # Back within seconds: nothing changes
+    freezer.tick(timedelta(seconds=5))
+    await _feed(hass, entry, J480_STATUS)
+    assert hass.states.get("climate.spa").state == "heat"
+
+    # A drop that lasts longer than the grace period does make it unavailable
+    client._set_connected(False)
+    await hass.async_block_till_done()
+    freezer.tick(timedelta(seconds=62))
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert hass.states.get("climate.spa").state == STATE_UNAVAILABLE
+    assert hass.states.get("binary_sensor.spa_connected").state == "off"
+    assert hass.states.get("sensor.spa_connection_drops").state == "2"
+
+    # And available again as soon as the spa reports
+    await _feed(hass, entry, J480_STATUS)
+    assert hass.states.get("climate.spa").state == "heat"
+
+    assert await hass.config_entries.async_unload(entry.entry_id)
